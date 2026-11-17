@@ -46,6 +46,16 @@ export interface TokensConfig {
   generated?: string
   /** What `s58-tokens build` writes with Style Dictionary, and the Figma exports it reads. */
   build?: BuildConfig
+  /**
+   * The project's formatter, run on each built file (not the DTCG files) through stdin. `{file}`
+   * is the file's path, so the formatter picks the right parser and config:
+   * `['oxfmt', '--stdin-filepath={file}']`.
+   */
+  format?: { command: readonly string[] }
+  check?: {
+    /** APCA floor misses the project accepts, as `<scale> <step> on <white|black>`: `amber 6 on white`. */
+    allowApcaMisses?: readonly string[]
+  }
 }
 
 /** Checks the config and returns it. The CLI reads it as the default export of tokens.config.ts. */

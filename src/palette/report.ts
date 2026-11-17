@@ -32,17 +32,7 @@ export function paletteReport(
     return [title, `${''.padEnd(9)}${steps.map((s) => pad(s, 5)).join('')}`, ...rows].join('\n')
   }
   const fitted = palette.filter((c) => !c.aliasOf && c.colour.c !== c.configured.c)
-  // The floors are what the rules guarantee for generated hues; given scales and neutral ranges
-  // aren't held to them.
-  const scaleDefs = resolveScales(config)
-  const checked = Object.entries(config.scales as Record<string, unknown>)
-    .filter(
-      ([, s]) =>
-        typeof s === 'string' ||
-        (typeof s === 'object' && s !== null && !('lightness' in s) && !('range' in s)),
-    )
-    .map(([name]) => name)
-  const failures = checked.flatMap((name) => apcaFailures(scaleDefs[name], config.rules, name))
+  const { checked, failures } = generatedApcaFailures(config)
   return [
     table('WCAG 2 contrast on white (4.5 body text, 3 large text and UI)', (c) =>
       contrastRatio(c, white).toFixed(1),
@@ -71,4 +61,24 @@ export function paletteReport(
         `  ${c.group}/${c.name}: ${formatOklch(c.configured)} → ${formatOklch(c.colour)} (ΔE ${deltaE(c.configured, c.colour).toFixed(2)})`,
     ),
   ].join('\n')
+}
+
+/**
+ * The APCA floors generated scales miss. The floors are what the rules guarantee for generated
+ * hues; scales given step by step and neutral ranges aren't held to them.
+ */
+export function generatedApcaFailures(config: Omit<PaletteConfig, 'figma'>): {
+  checked: string[]
+  failures: string[]
+} {
+  const scaleDefs = resolveScales(config)
+  const checked = Object.entries(config.scales as Record<string, unknown>)
+    .filter(
+      ([, s]) =>
+        typeof s === 'string' ||
+        (typeof s === 'object' && s !== null && !('lightness' in s) && !('range' in s)),
+    )
+    .map(([name]) => name)
+  const failures = checked.flatMap((name) => apcaFailures(scaleDefs[name], config.rules, name))
+  return { checked, failures }
 }

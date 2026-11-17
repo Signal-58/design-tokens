@@ -29,6 +29,7 @@ Run it from the project root, usually through the project's `package.json` scrip
 ```bash
 s58-tokens generate                 # the DTCG files in design-tokens/generated
 s58-tokens build                    # generate, then every file in build.files, breakpoints and _fluid.scss
+s58-tokens check                    # read only, for CI: exits 1 when something's wrong
 s58-tokens palette report           # contrast on white and black, APCA floors, gamut fit
 s58-tokens figma plugin [--watch]   # <plugin dir>/code.js, all modules
 s58-tokens figma script variables --dry-run --collections=Primitives   # for the Figma MCP's use_figma
@@ -45,7 +46,18 @@ s58-tokens figma script text-styles --dry-run --roles=heading,default
 - **Figma's colour exports** go in under `color.<mode>`, and each alias to `primitive/colors/…` becomes a reference to the generated palette. Figma's own resolved values are dropped: in a Display P3 file they're P3 numbers labelled `srgb`.
 - **Formats** in the package: `s58/scss/colour-primitives`, `s58/scss/semantic-colours`, `s58/scss/font-size-primitives`, `s58/scss/space-primitives`, `s58/scss/letter-spacing-primitives`, `s58/scss/line-height-primitives`, `s58/scss/line-height-utilities` and `s58/scss/fluid-semantics`. Each reads the whole dictionary and picks its tokens by path. A project adds its own under `build.formats`, using the helpers the package exports (`semanticColourEntries`, `fluidEntries`, `fontSizeEntries`).
 
-`buildTokenFiles(config)` returns the same files without writing them, for tests.
+Each built file goes through the project's formatter as it's written, when the config names one (`format: { command: ['oxfmt', '--stdin-filepath={file}'] }`), so the build writes what the repository keeps. `builtFiles(config)` returns the same files without writing them, for tests.
+
+## The check
+
+`s58-tokens check` is read only, for CI. It fails when:
+
+- a generated file doesn't match the configs and Figma exports: a config changed or Figma was re-exported without a rebuild, or someone edited a generated file;
+- a semantic token with code syntax has a raw value instead of a reference (semantics point only at primitives or at other semantics);
+- a generated scale misses an APCA floor that `check.allowApcaMisses` doesn't accept (`'amber 6 on white'`);
+- the plugin's manifest names a different plugin from the config.
+
+`checkTokens(config)` returns the same problems, for tests.
 
 ## The Figma plugin
 

@@ -35,7 +35,6 @@ export * from './figma/variables'
 export {
   buildTokenFiles,
   tokenTree,
-  writeDtcg,
   type BuildConfig,
   type BuildFile,
   type ProjectFormat,
@@ -43,3 +42,6 @@ export {
 export * from './style-dictionary/formats'
 export * from './dtcg/generate'
 export { figmaColourTokens, figmaFluidTokens, mergeTrees } from './dtcg/figma'
+export { builtFiles, dtcgFiles, formatOutput, type OutputFile } from './outputs'
+export { checkTokens, type CheckResult } from './check'
+export { generatedApcaFailures } from './palette/report'

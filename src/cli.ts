@@ -5,6 +5,7 @@
  *   s58-tokens generate                               # the DTCG files in design-tokens/generated
  *   s58-tokens build                                  # generate, then every file in build.files,
  *                                                     # the breakpoints and _fluid.scss
+ *   s58-tokens check                                  # read only, for CI: exits 1 on problems
  *   s58-tokens palette report                         # contrast, APCA floors, gamut fit
  *   s58-tokens figma plugin [--watch]                 # <plugin dir>/code.js, all modules
  *   s58-tokens figma script variables --dry-run [--collections=Primitives]   # use_figma
@@ -24,17 +25,12 @@ import {
   variablesSpecFor,
   type TokensConfig,
 } from './config'
-import { buildTokenFiles, writeDtcg } from './style-dictionary'
+import { checkTokens } from './check'
 import { buildFigmaPlugin } from './figma/plugin'
 import { buildTextStylesScript } from './figma/text-styles'
 import { buildVariablesScript } from './figma/variables'
 import { paletteReport } from './palette/report'
-import {
-  generateBreakpointsCssScss,
-  generateBreakpointsScss,
-  generateFluidToolScss,
-  utopiaScssFrom,
-} from './responsive/breakpoints'
+import { builtFiles, dtcgFiles } from './outputs'
 
 /** The most code the Figma MCP's use_figma tool accepts in one call. */
 const USE_FIGMA_LIMIT = 50_000
@@ -43,6 +39,8 @@ const USAGE = `Usage: s58-tokens [--config=<file>] <command>
 
   generate                               Write the DTCG files (design-tokens/generated)
   build                                  Generate, then write every file the config lists
+  check                                  Report files out of date with the configs, raw
+                                         semantic values and APCA misses (for CI)
   palette report                         Contrast on white and black, APCA floors, gamut fit
   figma plugin [--watch]                 Build the project's Figma plugin (code.js)
   figma script <variables|text-styles>   A use_figma script, on stdout
@@ -61,19 +59,20 @@ function write(file: string, contents: string): void {
 }
 
 async function build(config: TokensConfig): Promise<void> {
-  for (const file of writeDtcg(config)) process.stdout.write(`  -> ${file}\n`)
-  for (const { destination, output } of await buildTokenFiles(config)) write(destination, output)
-  const { breakpoints, fluidTool, utopia } = config
-  if (breakpoints) {
-    write(breakpoints.output.scss, generateBreakpointsScss(breakpoints, utopia.viewport))
-    write(breakpoints.output.css, generateBreakpointsCssScss(breakpoints))
+  for (const { destination, output } of [...dtcgFiles(config), ...(await builtFiles(config))]) {
+    write(destination, output)
   }
-  if (fluidTool) {
-    write(
-      fluidTool.output,
-      generateFluidToolScss(utopia.viewport, utopiaScssFrom(fluidTool.output)),
-    )
+}
+
+async function check(config: TokensConfig): Promise<void> {
+  const { problems, notes } = await checkTokens(config)
+  for (const note of notes) process.stdout.write(`  ${note}\n`)
+  if (problems.length) {
+    process.stderr.write(`${problems.map((p) => `✗ ${p}`).join('\n')}\n`)
+    process.exitCode = 1
+    return
   }
+  process.stdout.write('Tokens are in sync with the configs.\n')
 }
 
 const pluginDir = (config: TokensConfig) => config.figma.plugin.dir ?? 'design-tokens/figma-plugin'
@@ -173,11 +172,12 @@ async function main(argv: string[]): Promise<void> {
   const [command, sub, ...rest] = args
 
   if (command === 'generate') {
-    for (const file of writeDtcg(await loadTokensConfig(configFile))) {
-      process.stdout.write(`  -> ${file}\n`)
+    for (const { destination, output } of dtcgFiles(await loadTokensConfig(configFile))) {
+      write(destination, output)
     }
     return
   }
+  if (command === 'check') return check(await loadTokensConfig(configFile))
   if (command === 'build') return build(await loadTokensConfig(configFile))
   if (command === 'palette' && sub === 'report') {
     const config = await loadTokensConfig(configFile)

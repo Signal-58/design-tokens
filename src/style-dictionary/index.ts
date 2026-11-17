@@ -106,14 +106,3 @@ export async function buildTokenFiles(
   const outputs = (await sd.formatPlatform('s58')) as { destination?: string; output: unknown }[]
   return outputs.map((o) => ({ destination: String(o.destination), output: String(o.output) }))
 }
-
-/** Writes the generated DTCG files to `config.generated` (default design-tokens/generated). */
-export function writeDtcg(config: TokensConfig, root = process.cwd()): string[] {
-  const dir = path.join(root, config.generated ?? 'design-tokens/generated')
-  fs.mkdirSync(dir, { recursive: true })
-  return Object.entries(generateDtcg(config)).map(([name, tree]) => {
-    const file = path.join(dir, name)
-    fs.writeFileSync(file, `${JSON.stringify(tree, null, 2)}\n`)
-    return path.relative(root, file)
-  })
-}
