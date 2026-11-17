@@ -18,8 +18,10 @@
  *
  * @param {object} spec The spec from buildTextStyleSpec().
  * @param {boolean} dryRun Report only.
+ * @param {string[]} planned Variables the variables module creates earlier in the same run, as
+ *   "collection\u0000name". The plugin passes them, so its dry run works on a blank file.
  */
-export async function applyTextStyles(spec, dryRun) {
+export async function applyTextStyles(spec, dryRun, planned = []) {
   const PLACEHOLDER_FAMILY = 'Inter'
   const report = {
     dryRun,
@@ -102,14 +104,29 @@ export async function applyTextStyles(spec, dryRun) {
       ? { id: '(new collection)', name: spec.figma.fontCollection, modes: [], defaultModeId: null }
       : figma.variables.createVariableCollection(spec.figma.fontCollection)
   }
-  const sizeCollection = collectionNamed(spec.figma.sizeCollection)
+  // The size collection and its variables come from the variables module, which the plugin runs
+  // first. A dry run of the whole plugin on a blank file runs before they exist, so a dry run counts
+  // a missing one as there when `planned` (the variables module's spec, as "collection\u0000name")
+  // says that module creates it. Anything else missing still stops the run.
+  const plannedVariables = new Set(planned)
+  const isPlanned = (collection, name) =>
+    dryRun && plannedVariables.has(`${collection}\u0000${name}`)
+  let sizeCollection = collections.find((c) => c.name === spec.figma.sizeCollection)
+  if (!sizeCollection) {
+    const name = spec.figma.sizeCollection
+    if (!(dryRun && planned.some((k) => k.startsWith(`${name}\u0000`)))) collectionNamed(name)
+    sizeCollection = { id: '(planned collection)', name }
+  }
   const allVariables = [...(await figma.variables.getLocalVariablesAsync())]
   const variableNamed = (collection, name) => {
     const variable = allVariables.find(
       (v) => v.variableCollectionId === collection.id && v.name === name,
     )
-    if (!variable) throw new Error(`No variable "${name}" in "${collection.name}"`)
-    return variable
+    if (variable) return variable
+    if (isPlanned(collection.name, name)) {
+      return { id: `(planned) ${name}`, name, variableCollectionId: collection.id }
+    }
+    throw new Error(`No variable "${name}" in "${collection.name}"`)
   }
 
   if (fontCollection.modes.length > 1) {
