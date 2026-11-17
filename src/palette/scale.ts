@@ -1,0 +1,136 @@
+/**
+ * Generates a scale from one reference colour, one step per contrast target.
+ *
+ * - Lightness: each step is solved to hit its contrast on white from `paletteRules.contrastOnWhite`,
+ *   so step N has the same contrast in every hue.
+ * - Chroma: rises in a straight line from `chroma.lightest` × the reference's chroma at step 1 to the
+ *   reference's chroma at its step, then falls to `chroma.darkest` × at step 15. Each colour is
+ *   fitted to the gamut, and its lightness solved again, so the fit doesn't change its contrast.
+ * - The reference itself sits at the step nearest its own contrast (or `refStep`), unchanged.
+ * - Neutrals with a `range` spread lightness evenly across it instead, at the reference's chroma.
+ * - `overrides` set a step's lightness or chroma by hand, last.
+ */
+import type { ColourScale, Oklch, PaletteRules, ReferenceScale, Gamut } from './types'
+import { apcaContrast, contrastRatio, fitToGamut, luminance, parseColour } from './colour'
+
+const white: Oklch = { l: 1, c: 0, h: 0 }
+
+const round = (x: number, dp: number) => Number(x.toFixed(dp))
+
+/** The lightness, with chroma fitted to the gamut, whose contrast on white is `target`. */
+function solveLightness(target: number, c: number, h: number, gamut: Gamut): Oklch {
+  const wantY = 1.05 / target - 0.05
+  let lo = 0
+  let hi = 1
+  let best = fitToGamut({ l: 0.5, c, h }, gamut)
+  for (let i = 0; i < 40; i++) {
+    const l = (lo + hi) / 2
+    best = fitToGamut({ l, c, h }, gamut)
+    if (luminance(best) < wantY) lo = l
+    else hi = l
+  }
+  return { ...best, l: round(best.l, 4) }
+}
+
+/** The step (1 to n) whose target contrast is nearest the colour's own, on a log scale. */
+export function nearestStep(colour: Oklch, targets: readonly number[]): number {
+  const own = Math.log(contrastRatio(colour, white))
+  let best = 0
+  targets.forEach((t, i) => {
+    if (Math.abs(Math.log(t) - own) < Math.abs(Math.log(targets[best]) - own)) best = i
+  })
+  return best + 1
+}
+
+export function generateScale(
+  input: string | ReferenceScale,
+  rules: PaletteRules,
+  gamut: Gamut,
+  name = 'scale',
+): ColourScale {
+  const spec = typeof input === 'string' ? { colour: input } : input
+  const ref = fitToGamut(parseColour(spec.colour), gamut)
+  const n = rules.contrastOnWhite.length
+  const lightness: number[] = []
+  const chroma: number[] = []
+
+  if (spec.range) {
+    const [from, to] = spec.range
+    for (let i = 0; i < n; i++) {
+      lightness.push(round(from + ((to - from) * i) / (n - 1), 4))
+      chroma.push(ref.c)
+    }
+  } else {
+    const r = (spec.refStep ?? nearestStep(ref, rules.contrastOnWhite)) - 1
+    if (r < 0 || r >= n) throw new Error(`${name}.refStep must be 1 to ${n}`)
+    const { lightest, darkest } = rules.chroma
+    for (let i = 0; i < n; i++) {
+      const f =
+        i <= r
+          ? lightest + (1 - lightest) * (r === 0 ? 1 : i / r)
+          : 1 - (1 - darkest) * ((i - r) / (n - 1 - r))
+      const step = i === r ? ref : solveLightness(rules.contrastOnWhite[i], ref.c * f, ref.h, gamut)
+      lightness.push(step.l)
+      chroma.push(round(step.c, 4))
+    }
+  }
+
+  const refStep = spec.range
+    ? lightness.reduce(
+        (b, l, i) => (Math.abs(l - ref.l) < Math.abs(lightness[b] - ref.l) ? i : b),
+        0,
+      ) + 1
+    : (spec.refStep ?? nearestStep(ref, rules.contrastOnWhite))
+
+  if (!spec.range) {
+    const contrasts = lightness.map((l, i) => contrastRatio({ l, c: chroma[i], h: ref.h }, white))
+    const i = contrasts.findIndex((c, k) => k > 0 && c < contrasts[k - 1])
+    if (i > 0) {
+      throw new Error(
+        `${name}: the reference at step ${refStep} has contrast ${contrasts[refStep - 1].toFixed(2)}, ` +
+          `out of order with its neighbours. Leave refStep out to place it at step ` +
+          `${nearestStep(ref, rules.contrastOnWhite)}, or change the reference colour.`,
+      )
+    }
+  }
+
+  for (const [step, o] of Object.entries(spec.overrides ?? {})) {
+    const i = Number(step) - 1
+    if (!(i >= 0 && i < n))
+      throw new Error(`${name}.overrides has step ${step}; steps are 1 to ${n}`)
+    if (o.l !== undefined) lightness[i] = o.l
+    if (o.c !== undefined) chroma[i] = o.c
+  }
+
+  return { hue: ref.h, ref: refStep, lightness, chroma }
+}
+
+const black: Oklch = { l: 0, c: 0, h: 0 }
+
+/**
+ * The APCA floors in `rules.apca` a scale misses: text on black at a step and every lighter one,
+ * text on white at a step and every darker one. Empty when it meets them all.
+ */
+export function apcaFailures(scale: ColourScale, rules: PaletteRules, name = 'scale'): string[] {
+  const colours = scale.lightness.map((l, i) => ({ l, c: scale.chroma[i], h: scale.hue }))
+  const failures: string[] = []
+  const check = (
+    floors: Readonly<Record<number, number>> | undefined,
+    bg: Oklch,
+    label: string,
+    lighter: boolean,
+  ) => {
+    for (const [step, floor] of Object.entries(floors ?? {})) {
+      const s = Number(step)
+      colours.forEach((c, i) => {
+        if (lighter ? i + 1 > s : i + 1 < s) return
+        const lc = Math.abs(apcaContrast(c, bg))
+        if (lc < floor)
+          failures.push(`${name} ${i + 1}: Lc ${lc.toFixed(1)} ${label}, below ${floor}`)
+      })
+    }
+  }
+  check(rules.apca?.onBlack, black, 'on black', true)
+  check(rules.apca?.onWhite, white, 'on white', false)
+  return [...new Set(failures)]
+}
