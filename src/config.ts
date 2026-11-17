@@ -6,6 +6,7 @@ import path from 'node:path'
 
 import { createJiti } from 'jiti'
 
+import { fileKeyFrom, isFileKey } from './figma/file-key'
 import type { FileGuard } from './figma/inline'
 import { buildTextStyleSpec, type TextStyleSpec } from './figma/text-styles'
 import {
@@ -72,6 +73,18 @@ export function defineTokens<const T extends TokensConfig>(config: T): T {
   if (!/^[a-z0-9-]+$/.test(config.figma.plugin.id)) {
     throw new Error(
       `figma.plugin.id must be lowercase letters, digits and hyphens: ${config.figma.plugin.id}`,
+    )
+  }
+  const { fileKey } = config.figma
+  if (fileKey && !isFileKey(fileKey)) {
+    let hint = ''
+    try {
+      hint = ` Use '${fileKeyFrom(fileKey)}'.`
+    } catch {
+      // Not a link either: the message says what a key looks like.
+    }
+    throw new Error(
+      `figma.fileKey must be the file's key, the part of its link after /design/: ${fileKey}.${hint}`,
     )
   }
   return config

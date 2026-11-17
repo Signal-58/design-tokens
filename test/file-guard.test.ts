@@ -9,7 +9,9 @@ import {
   buildTextStylesScript,
   buildVariablesScript,
   checkTokens,
+  defineTokens,
   fileGuardFor,
+  fileKeyFrom,
   initProject,
   inlineFigmaFunction,
   loadTokensConfig,
@@ -60,10 +62,18 @@ describe('checkFile', () => {
     expect(result.message).toContain('SomeoneElsesFile00000000')
   })
 
-  it('refuses every file while the config has no file key', async () => {
-    const result = await checkFile({ ...FILE, fileKey: '' }, { fileKey: 'AnyFile', root: {} })
+  it("refuses every file while the config has no file key, and says the open file's key", async () => {
+    const open = 'OpenFileKey0000000000000'
+    const result = await checkFile({ ...FILE, fileKey: '' }, { fileKey: open, root: {} })
     expect(result.ok).toBe(false)
     expect(result.message).toContain("doesn't name Test Project's Figma file")
+    expect(result.message).toContain(
+      `set figma.fileKey in design-tokens/tokens.config.ts to '${open}'`,
+    )
+
+    const unknown = await checkFile({ ...FILE, fileKey: '' }, { root: {} })
+    expect(unknown.ok).toBe(false)
+    expect(unknown.message).toContain('the part after /design/ in its link')
   })
 
   it("falls back to the file's name only when Figma gives no key", async () => {
@@ -81,6 +91,64 @@ describe('checkFile', () => {
     const result = await checkFile(FILE, { root: { name: 'Test file' } })
     expect(result.ok).toBe(false)
     expect(result.message).toContain('enablePrivatePluginApi')
+  })
+})
+
+describe('fileKeyFrom', () => {
+  const key = 'WUpJJ1qfOByYSvXrHl7gyg'
+
+  it('takes the key from a link, or a bare key as it is', () => {
+    for (const input of [
+      key,
+      ` ${key} `,
+      `https://www.figma.com/design/${key}/Design-tokens-starter-test?node-id=0-1&t=abc`,
+      `https://figma.com/file/${key}/Old-link`,
+      `figma.com/design/${key}`,
+      `www.figma.com/design/${key}/Name`,
+    ]) {
+      expect(fileKeyFrom(input), input).toBe(key)
+    }
+  })
+
+  it("gives the main file's key for a branch link", () => {
+    const branch = 'BranchKey0000000000000'
+    expect(fileKeyFrom(`https://www.figma.com/design/${key}/branch/${branch}/Name`)).toBe(key)
+  })
+
+  it("refuses what isn't a Figma file", () => {
+    expect(() => fileKeyFrom('not a key')).toThrow("isn't a Figma file key or link")
+    expect(() => fileKeyFrom(`https://example.com/design/${key}/Name`)).toThrow(
+      "isn't a Figma link",
+    )
+    expect(() => fileKeyFrom('https://www.figma.com/files/team/123/Signal58')).toThrow(
+      'No file key',
+    )
+  })
+
+  it('is what init records, and the config refuses a link', () => {
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), 's58-key-'))
+    try {
+      initProject(
+        { name: 'Acme', fileKey: `https://www.figma.com/design/${key}/Acme?node-id=0-1` },
+        { root },
+      )
+      const config = fs.readFileSync(path.join(root, 'design-tokens/tokens.config.ts'), 'utf8')
+      expect(config).toContain(`fileKey: '${key}'`)
+      expect(() => initProject({ name: 'Acme', fileKey: 'nope' }, { root, force: true })).toThrow(
+        '--file-key: "nope" isn\'t a Figma file key or link',
+      )
+    } finally {
+      fs.rmSync(root, { recursive: true, force: true })
+    }
+    const config = (fileKey: string) =>
+      ({
+        name: 'Acme',
+        figma: { fileKey, plugin: { name: 'Acme Tokens', id: 'acme-tokens-dev' } },
+      }) as never
+    expect(() => defineTokens(config(`https://www.figma.com/design/${key}/Acme`))).toThrow(
+      `Use '${key}'.`,
+    )
+    expect(() => defineTokens(config(''))).not.toThrow()
   })
 })
 

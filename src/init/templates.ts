@@ -10,7 +10,7 @@ export interface StarterOptions {
   name: string
   /** The plugin id. Default: the name in lowercase with hyphens, plus `-tokens-dev`. */
   id?: string
-  /** The Figma file key, when the file exists. */
+  /** The Figma file, when it exists: its key or its link (the key is taken from the link). */
   fileKey?: string
   /** Reference colours: hex or `oklch(L C H)`. */
   brand?: string

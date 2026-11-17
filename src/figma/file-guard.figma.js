@@ -11,15 +11,18 @@
  */
 export async function checkFile(expected) {
   const where = 'figma.fileKey in design-tokens/tokens.config.ts'
+  const key = typeof figma.fileKey === 'string' ? figma.fileKey : ''
   if (!expected.fileKey) {
+    // Figma knows the open file's key, so say it: running the plugin once on a new file tells the
+    // project what to record.
+    const set = key
+      ? `If this is ${expected.project}'s file, set ${where} to '${key}' (this file's key), then rebuild.`
+      : `Set ${where} to the file's key (the part after /design/ in its link), then rebuild.`
     return {
       ok: false,
-      message:
-        `The config doesn't name ${expected.project}'s Figma file, so nothing was checked or changed. ` +
-        `Set ${where} to the file's key (the part after /design/ in its URL), then rebuild.`,
+      message: `The config doesn't name ${expected.project}'s Figma file, so nothing was checked or changed. ${set}`,
     }
   }
-  const key = typeof figma.fileKey === 'string' ? figma.fileKey : ''
   if (key) {
     if (key === expected.fileKey) return { ok: true, by: 'key' }
     return {

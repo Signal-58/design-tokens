@@ -23,6 +23,7 @@ export * from './fluid/utopia'
 export * from './responsive/breakpoints'
 
 export { buildFigmaPlugin, packageVersion, type PluginSpecs } from './figma/plugin'
+export { fileKeyFrom, isFileKey } from './figma/file-key'
 export { figmaScript, inlineFigmaFunction, type FileGuard } from './figma/inline'
 export {
   buildTextStyleSpec,

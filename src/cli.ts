@@ -42,7 +42,7 @@ const USE_FIGMA_LIMIT = 50_000
 const USAGE = `Usage: s58-tokens [--config=<file>] <command>
 
   init --name=<project> [--brand=<colour>] [--accent=<colour>] [--neutral=<colour>]
-       [--file-key=<key>] [--id=<plugin id>] [--out=<dir>] [--force]
+       [--file-key=<key or link>] [--id=<plugin id>] [--out=<dir>] [--force]
                                          Write a new project's design-tokens/ configs
   generate                               Write the DTCG files (design-tokens/generated)
   build                                  Generate, then write every file the config lists

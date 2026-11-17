@@ -11,7 +11,8 @@ Design tokens that start in code and land in Figma:
 ## Starting a project
 
 ```bash
-s58-tokens init --name="Acme" --brand="#E50E3F" --accent="#F3A512" --neutral="#8B8D92"
+s58-tokens init --name="Acme" --brand="#E50E3F" --accent="#F3A512" --neutral="#8B8D92" \
+  --file-key="https://www.figma.com/design/<file key>/Acme"
 s58-tokens build
 s58-tokens figma plugin
 ```
@@ -22,7 +23,7 @@ s58-tokens figma plugin
 - **Placeholders:** three colour scales (brand, accent and a neutral across the whole range), from the colours given or placeholder ones. Inter for every font family.
 - **Left out until the project needs them:** breakpoints, `_fluid.scss` (it needs `utopia-core-scss`), the semantic colours (export them from Figma first) and a formatter. `tokens.config.ts` shows each one, commented out.
 
-The built SCSS goes to `src/styles/tokens` (`--out=` to change it). `--file-key=` records the Figma file, `--id=` sets the plugin id (default `<name>-tokens-dev`), and `--force` overwrites existing files; without it, `init` refuses.
+The built SCSS goes to `src/styles/tokens` (`--out=` to change it). `--file-key=` records the project's Figma file: paste its link (**Share → Copy link**), in quotes, or just its key, the part of the link after `/design/`. A branch's link gives the main file's key. `--id=` sets the plugin id (default `<name>-tokens-dev`), and `--force` overwrites existing files; without it, `init` refuses.
 
 ## A project's configs
 
@@ -88,7 +89,7 @@ The Figma-side code (`src/figma/*.figma.js` and `plugin-ui.html`) is the same fo
 The plugin and every `use_figma` script check which Figma file they're in before they read or change anything, so one project's tokens can't land in another project's file. They compare the file's key with `figma.fileKey` in `tokens.config.ts`, and refuse:
 
 - any other file;
-- every file while `figma.fileKey` is empty (`init` leaves it empty unless given `--file-key=`), so record the key, from the file's URL (`figma.com/design/<file key>/…`), before the first run.
+- every file while `figma.fileKey` is empty (`init` leaves it empty unless given `--file-key=`). The message then names the open file's key, so running the plugin once on the project's new file tells you what to record. `figma.fileKey` must be a bare key: the config refuses a link and says which key to use.
 
 Figma gives a plugin the file's key only when its manifest sets `"enablePrivatePluginApi": true`. `s58-tokens figma plugin` writes that, and adds it to an existing manifest. `use_figma` always has the key. If Figma doesn't give the key, the guard falls back to the file's name when the config sets `figma.fileName`, and otherwise refuses. A refused `use_figma` script throws, so nothing in the run is kept.
 
