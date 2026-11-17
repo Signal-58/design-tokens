@@ -12,7 +12,7 @@ import type { UtopiaSpaceConfig, UtopiaTypeConfig } from 'utopia-core'
 import { oklchToRgb } from '../palette/colour'
 import type { PaletteColour } from '../palette/palette'
 import type { PaletteFigma } from '../palette/types'
-import { figmaScript } from './inline'
+import { figmaScript, type FileGuard } from './inline'
 
 /** Which Figma variables code writes, and where they live. Variables are matched by name. */
 export interface FigmaVariablesConfig {
@@ -327,6 +327,10 @@ function fluidTokens(
 }
 
 /** The use_figma script for variables. */
-export function buildVariablesScript(spec: VariablesSpec, dryRun: boolean): string {
-  return figmaScript('apply-variables.figma.js', 'applyVariables', spec, dryRun)
+export function buildVariablesScript(
+  spec: VariablesSpec,
+  dryRun: boolean,
+  guard: FileGuard,
+): string {
+  return figmaScript('apply-variables.figma.js', 'applyVariables', spec, dryRun, guard)
 }

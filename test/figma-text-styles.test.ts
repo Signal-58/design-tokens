@@ -9,6 +9,7 @@ import {
   inlineFigmaFunction,
   type TypographyRole,
 } from '../src/index'
+import { FILE, inFile } from './file-guard'
 
 /** The collections and groups in the S58 starter Figma file. */
 const typographyFigma = {
@@ -297,7 +298,7 @@ function mockFigma(
 
 async function run(script: string, figma: unknown) {
   const AsyncFunction = Object.getPrototypeOf(async () => {}).constructor
-  return new AsyncFunction('figma', script)(figma)
+  return new AsyncFunction('figma', script)(inFile(figma as object))
 }
 
 // An existing style that already uses Brand Display Bold, as a project's Strong/* styles might.
@@ -366,7 +367,7 @@ describe('the generated Figma script', () => {
 
   it('changes nothing on a dry run', async () => {
     const mock = mockFigma(spec, { existing: [strong] })
-    const report = await run(buildFigmaScript(spec, true), mock.figma)
+    const report = await run(buildFigmaScript(spec, true, FILE), mock.figma)
     expect(report.created).toHaveLength(spec.styles.length)
     expect(mock.styles).toHaveLength(1)
     expect(mock.loaded.size).toBe(0)
@@ -380,7 +381,7 @@ describe('the generated Figma script', () => {
     const blankSpec = buildTextStyleSpec({ heading }, inter)
 
     const dry = mockFigma(blankSpec, { blank: true })
-    const preview = await run(buildFigmaScript(blankSpec, true), dry.figma)
+    const preview = await run(buildFigmaScript(blankSpec, true, FILE), dry.figma)
     expect(preview.variables).toContainEqual({
       name: 'Type primitives',
       from: 'none',
@@ -396,7 +397,7 @@ describe('the generated Figma script', () => {
     expect(dry.styles).toHaveLength(0)
 
     const mock = mockFigma(blankSpec, { blank: true })
-    const report = await run(buildFigmaScript(blankSpec, false), mock.figma)
+    const report = await run(buildFigmaScript(blankSpec, false, FILE), mock.figma)
     expect(report.created).toHaveLength(blankSpec.styles.length)
     expect(mock.variables.find((v) => v.name === 'Font family/Heading')?.scopes).toEqual([
       'FONT_FAMILY',
@@ -408,7 +409,7 @@ describe('the generated Figma script', () => {
     expect(mock.byId(h1.boundVariables.fontFamily.id)?.name).toBe('Font family/Heading')
     expect(h1.fontName).toEqual({ family: 'Inter', style: 'Bold' })
 
-    const rerun = await run(buildFigmaScript(blankSpec, false), mock.figma)
+    const rerun = await run(buildFigmaScript(blankSpec, false, FILE), mock.figma)
     expect(rerun.variables).toEqual([])
     expect(rerun.unchanged).toHaveLength(blankSpec.styles.length)
   })
@@ -441,7 +442,7 @@ describe('the generated Figma script', () => {
 
   it('creates the styles without loading the real font, then is a no-op on a rerun', async () => {
     const mock = mockFigma(spec, { existing: [strong] })
-    const script = buildFigmaScript(spec, false)
+    const script = buildFigmaScript(spec, false, FILE)
     const first = await run(script, mock.figma)
     expect(first.created).toHaveLength(spec.styles.length)
     expect(first.warnings).toEqual([])
@@ -463,14 +464,14 @@ describe('the generated Figma script', () => {
 
   it('updates a bound style whose font is not loadable, and reports orphans without deleting them', async () => {
     const mock = mockFigma(spec, { existing: [strong] })
-    await run(buildFigmaScript(spec, false), mock.figma)
+    await run(buildFigmaScript(spec, false, FILE), mock.figma)
     const h1 = mock.styles.find((s) => s.name === 'Heading/Step 6')!
     const id = h1.id
 
     const tighter = specFor({ heading: { ...heading, letterSpacing: -4 } })
     const orphan = mock.figma.createTextStyle()
     orphan.name = 'Heading/Step 14'
-    const report = await run(buildFigmaScript(tighter, false), mock.figma)
+    const report = await run(buildFigmaScript(tighter, false, FILE), mock.figma)
 
     expect(report.updated).toContainEqual({ name: 'Heading/Step 6', changes: ['letterSpacing'] })
     const updated = mock.styles.find((s) => s.id === id)!
@@ -489,7 +490,7 @@ describe('the generated Figma script', () => {
       },
     )
     const mock = mockFigma(spec)
-    const report = await run(buildFigmaScript(changed, false), mock.figma)
+    const report = await run(buildFigmaScript(changed, false, FILE), mock.figma)
     expect(report.variables).toContainEqual({
       name: 'Font family/Heading',
       from: 'Brand Display',
@@ -506,7 +507,7 @@ describe('the generated Figma script', () => {
 
   it('warns about a font that no style uses and Figma cannot load', async () => {
     const mock = mockFigma(spec)
-    const report = await run(buildFigmaScript(spec, true), mock.figma)
+    const report = await run(buildFigmaScript(spec, true, FILE), mock.figma)
     expect(report.warnings).toContainEqual(expect.stringContaining('"Brand Display Bold"'))
   })
 
@@ -520,7 +521,7 @@ describe('the generated Figma script', () => {
       fontName: { family: 'Brand Display', style: 'Medium' },
     }
     const mock = mockFigma(medium, { existing: [strong, brand] })
-    const report = await run(buildFigmaScript(medium, false), mock.figma)
+    const report = await run(buildFigmaScript(medium, false, FILE), mock.figma)
     expect(report.created).toHaveLength(medium.styles.length)
     expect(mock.styles.find((s) => s.name === 'Heading/Step 6')!.fontName).toEqual({
       family: 'Brand Display',
@@ -546,7 +547,7 @@ describe('the local Figma plugin', () => {
       onmessage: undefined as undefined | ((msg: { type: string }) => Promise<void> | void),
     }
     const plugin = {
-      ...figma,
+      ...inFile(figma),
       ui,
       showUI: () => {},
       closePlugin: () => {
@@ -561,7 +562,7 @@ describe('the local Figma plugin', () => {
   it('shows a dry run on open and applies only when Apply is clicked', async () => {
     const mock = mockFigma(spec, { existing: [strong] })
     const builtAt = new Date('2026-11-16T13:40:00Z')
-    const plugin = openPlugin(buildFigmaPlugin({ textStyles: spec }, builtAt), mock.figma)
+    const plugin = openPlugin(buildFigmaPlugin({ textStyles: spec }, FILE, builtAt), mock.figma)
     await plugin.settle()
     expect(plugin.messages[0].type).toBe('report')
     expect(plugin.messages[0]).toMatchObject({ builtAt: builtAt.toISOString() })
@@ -580,7 +581,7 @@ describe('the local Figma plugin', () => {
   it('shows an error instead of throwing', async () => {
     const mock = mockFigma(spec)
     const broken = { ...spec, figma: { ...spec.figma, sizeCollection: 'Missing' } }
-    const plugin = openPlugin(buildFigmaPlugin({ textStyles: broken }), mock.figma)
+    const plugin = openPlugin(buildFigmaPlugin({ textStyles: broken }, FILE), mock.figma)
     await plugin.settle()
     expect(plugin.messages).toEqual([
       { type: 'error', message: 'No variable collection named "Missing"' },
@@ -622,7 +623,7 @@ describe('variable-bound spacing and step overrides', () => {
       existing: fontsInFile,
       loadable: ['Inter|Regular', 'Inter|Medium', 'Inter|Bold'],
     })
-    const script = buildFigmaScript(spec, false)
+    const script = buildFigmaScript(spec, false, FILE)
     const first = await run(script, mock.figma)
     expect(first.warnings).toEqual([])
     expect(first.created).toHaveLength(spec.styles.length)
@@ -644,17 +645,17 @@ describe('variable-bound spacing and step overrides', () => {
   it('switches a value between bound and plain', async () => {
     const mock = mockFigma(spec, { existing: fontsInFile })
     const one = { ...heading, steps: [6], letterSpacing: 0 } as const
-    await run(buildFigmaScript(specFor({ heading: one }), false), mock.figma)
+    await run(buildFigmaScript(specFor({ heading: one }), false, FILE), mock.figma)
     const h1 = () => mock.styles.find((s) => s.name === 'Heading/Step 6')!
 
     const bound = specFor({
       heading: { ...one, letterSpacing: { variable: 'Letter spacing/Step {step}' } },
     })
-    const toBound = await run(buildFigmaScript(bound, false), mock.figma)
+    const toBound = await run(buildFigmaScript(bound, false, FILE), mock.figma)
     expect(toBound.updated).toEqual([{ name: 'Heading/Step 6', changes: ['letterSpacing'] }])
     expect(mock.byId(h1().boundVariables.letterSpacing.id)?.name).toBe('Letter spacing/Step 6')
 
-    const toPlain = await run(buildFigmaScript(specFor({ heading: one }), false), mock.figma)
+    const toPlain = await run(buildFigmaScript(specFor({ heading: one }), false, FILE), mock.figma)
     expect(toPlain.updated).toEqual([{ name: 'Heading/Step 6', changes: ['letterSpacing'] }])
     expect(h1().boundVariables.letterSpacing).toBeUndefined()
     expect(h1().letterSpacing).toEqual({ unit: 'PERCENT', value: 0 })
@@ -669,7 +670,7 @@ describe('variable-bound spacing and step overrides', () => {
       letterSpacing: { unit: 'PIXELS', value: 0 },
     }
     const mock = mockFigma(one, { existing: [...fontsInFile, existing] })
-    const report = await run(buildFigmaScript(one, true), mock.figma)
+    const report = await run(buildFigmaScript(one, true, FILE), mock.figma)
     expect(report.updated[0].changes).not.toContain('letterSpacing')
   })
 })

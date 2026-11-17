@@ -1,4 +1,7 @@
-/** The development plugin's manifest.json, which a designer imports once in Figma desktop. */
+/**
+ * The development plugin's manifest.json, which a designer imports once in Figma desktop.
+ * `enablePrivatePluginApi` gives the plugin `figma.fileKey`, which the file guard checks.
+ */
 export function pluginManifest(plugin: { name: string; id: string }): string {
   const manifest = {
     name: plugin.name,
@@ -8,6 +11,7 @@ export function pluginManifest(plugin: { name: string; id: string }): string {
     editorType: ['figma'],
     documentAccess: 'dynamic-page',
     networkAccess: { allowedDomains: ['none'] },
+    enablePrivatePluginApi: true,
   }
   return `${JSON.stringify(manifest, null, 2)}\n`
 }

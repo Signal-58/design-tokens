@@ -9,7 +9,7 @@ import type {
   TypographyRole,
   VariableValue,
 } from '../type/rules'
-import { figmaScript } from './inline'
+import { figmaScript, type FileGuard } from './inline'
 
 export interface TextStyleSpec {
   figma: { fontCollection: string; sizeCollection: string }
@@ -109,6 +109,10 @@ export function buildTextStyleSpec(
 }
 
 /** The use_figma script for text styles. */
-export function buildTextStylesScript(spec: TextStyleSpec, dryRun: boolean): string {
-  return figmaScript('apply-text-styles.figma.js', 'applyTextStyles', spec, dryRun)
+export function buildTextStylesScript(
+  spec: TextStyleSpec,
+  dryRun: boolean,
+  guard: FileGuard,
+): string {
+  return figmaScript('apply-text-styles.figma.js', 'applyTextStyles', spec, dryRun, guard)
 }

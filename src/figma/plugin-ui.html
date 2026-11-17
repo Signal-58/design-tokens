@@ -135,7 +135,7 @@
     }
   }
 
-  function render(dryRun, reports, builtAt) {
+  function render(dryRun, reports, builtAt, version, checkedBy) {
     const sections = [
       reports.variables && variablesSection(reports.variables),
       reports.textStyles && textStylesSection(reports.textStyles),
@@ -149,13 +149,19 @@
     el.innerHTML =
       `<h1>${heading}</h1>` +
       sections.map((s) => s.html).join('') +
-      `<p class="muted">Built from the config at ${esc(new Date(builtAt).toLocaleString('en-GB'))}. If you’ve changed the config since, run <code>pnpm app:figma:plugin</code> (or keep <code>:watch</code> running) and reopen the plugin.</p>`
+      `<p class="muted">Checked that this is the project’s file, by its ${checkedBy === 'name' ? 'name (Figma didn’t give its key)' : 'key'}.</p>` +
+      `<p class="muted">Built from the config at ${esc(new Date(builtAt).toLocaleString('en-GB'))} with @signal58/design-tokens ${esc(version)}. If you’ve changed the config since, run <code>pnpm app:figma:plugin</code> (or keep <code>:watch</code> running) and reopen the plugin.</p>`
     apply.disabled = !dryRun || pending === 0
   }
 
   onmessage = (event) => {
     const msg = event.data.pluginMessage
-    if (msg.type === 'report') render(msg.dryRun, msg.reports, msg.builtAt)
+    if (msg.type === 'report')
+      render(msg.dryRun, msg.reports, msg.builtAt, msg.version, msg.checkedBy)
+    if (msg.type === 'blocked') {
+      el.innerHTML = `<h1 class="error">Wrong file</h1><p>${esc(msg.message)}</p>`
+      apply.disabled = true
+    }
     if (msg.type === 'error') {
       // Unlike use_figma, a plugin keeps the changes made before an error. Rerunning is safe.
       const what = applying

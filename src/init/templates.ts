@@ -343,7 +343,8 @@ import utopia from ${local('utopia.config')}
 export default defineTokens({
   name: ${quote(o.name)},
   figma: {
-    // The project's Figma file, from its URL: figma.com/design/<file key>/…
+    // The project's Figma file, from its URL: figma.com/design/<file key>/…. The plugin and the
+    // use_figma scripts refuse to run on any other file, or until this is set.
     fileKey: ${quote(o.fileKey ?? '')},
     plugin: { name: ${quote(`${o.name} Tokens`)}, id: ${quote(id)} },
   },

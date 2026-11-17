@@ -8,6 +8,7 @@ import {
   defineFigmaVariables,
   type VariablesSpec,
 } from '../src/index'
+import { FILE, inFile } from './file-guard'
 
 /** Where the variables go: the names in the S58 starter Figma file, with one named pair. */
 const figmaVariables = defineFigmaVariables({
@@ -142,7 +143,7 @@ function mockFigma(collectionNames: string[], seed: Seed[] = []) {
 
 async function run(script: string, figma: unknown) {
   const AsyncFunction = Object.getPrototypeOf(async () => {}).constructor
-  return new AsyncFunction('figma', script)(figma)
+  return new AsyncFunction('figma', script)(inFile(figma as object))
 }
 
 // A fixed scale of the tests' own, so editing utopia.config.ts never breaks them.
@@ -175,7 +176,7 @@ const NAMES = ['Type primitives', 'Space primitives']
 /** A mock with every variable in the spec already written, as after a first Apply. */
 async function inSync() {
   const mock = mockFigma(NAMES)
-  await run(buildVariablesScript(spec, false), mock.figma)
+  await run(buildVariablesScript(spec, false, FILE), mock.figma)
   return mock
 }
 
@@ -222,7 +223,7 @@ describe('the generated variables script', () => {
 
   it('changes nothing on a dry run', async () => {
     const mock = mockFigma(NAMES)
-    const report = await run(buildVariablesScript(spec, true), mock.figma)
+    const report = await run(buildVariablesScript(spec, true, FILE), mock.figma)
     expect(report.created).toContainEqual({
       name: 'Fluid tokens',
       value: 'new collection (Min, Max)',
@@ -260,7 +261,7 @@ describe('the generated variables script', () => {
         if (typeof value === 'number') v.valuesByMode[mode] = Math.fround(value)
       }
     }
-    const report = await run(buildVariablesScript(spec, true), mock.figma)
+    const report = await run(buildVariablesScript(spec, true, FILE), mock.figma)
     expect(report.created).toEqual([])
     expect(report.updated).toEqual([])
     expect(report.warnings).toEqual([])
@@ -281,7 +282,7 @@ describe('the generated variables script', () => {
     fluid.codeSyntax = {}
     fluid.description = 'old'
 
-    const report = await run(buildVariablesScript(spec, false), mock.figma)
+    const report = await run(buildVariablesScript(spec, false, FILE), mock.figma)
     expect(report.updated).toEqual([
       { name: 'Type primitives: Font size @max/Step 6', from: 70, to: 77.2476 },
       {
@@ -300,7 +301,7 @@ describe('the generated variables script', () => {
     expect(mock.find('Type primitives', 'Font size @max/Step 6')).toBe(size)
     expect(mock.valueOf('Fluid tokens', 'Space size pairs/S—M', 'Max')).toBe('→ Space size/M')
 
-    const again = await run(buildVariablesScript(spec, false), mock.figma)
+    const again = await run(buildVariablesScript(spec, false, FILE), mock.figma)
     expect(again.created).toEqual([])
     expect(again.updated).toEqual([])
   })
@@ -313,7 +314,7 @@ describe('the generated variables script', () => {
       id: 'extra',
       name: 'Font size @min/Step 14',
     })
-    const report = await run(buildVariablesScript(spec, false), mock.figma)
+    const report = await run(buildVariablesScript(spec, false, FILE), mock.figma)
     expect(report.created).toEqual([{ name: 'Space primitives: Space @min/M', value: 27 }])
     expect(report.figmaOnly).toEqual(['Type primitives: Font size @min/Step 14'])
     expect(mock.find('Type primitives', 'Font size @min/Step 14')).toBeDefined()
@@ -324,7 +325,7 @@ describe('the generated variables script', () => {
     const s = mock.find('Space primitives', 'Space @max/S')!
     s.valuesByMode[mock.collections[1].defaultModeId] = { type: 'VARIABLE_ALIAS', id: 'x' }
     mock.find('Space primitives', 'Space @min/M')!.resolvedType = 'STRING'
-    const report = await run(buildVariablesScript(spec, false), mock.figma)
+    const report = await run(buildVariablesScript(spec, false, FILE), mock.figma)
     expect(report.warnings).toEqual([
       'Space primitives: Space @max/S is an alias; left unchanged.',
       'Space primitives: Space @min/M is STRING, not FLOAT; left unchanged.',
@@ -340,7 +341,7 @@ describe('the generated variables script', () => {
     const missing: VariablesSpec = {
       collections: [spec.collections[0], { ...spec.collections[1], required: true }],
     }
-    await expect(run(buildVariablesScript(missing, false), mock.figma)).rejects.toThrow(
+    await expect(run(buildVariablesScript(missing, false, FILE), mock.figma)).rejects.toThrow(
       'No variable collection named "Space primitives"',
     )
     expect(mock.variables).toHaveLength(0)
@@ -362,8 +363,8 @@ describe('the S58 Tokens plugin with the variables module', () => {
       postMessage: (msg: (typeof messages)[number]) => messages.push(msg),
       onmessage: undefined as undefined | ((msg: { type: string }) => Promise<void> | void),
     }
-    new Function('figma', buildFigmaPlugin({ variables: spec }))({
-      ...mock.figma,
+    new Function('figma', buildFigmaPlugin({ variables: spec }, FILE))({
+      ...inFile(mock.figma),
       ui,
       showUI: () => {},
       closePlugin: () => {},

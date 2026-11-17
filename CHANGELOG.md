@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+- **File guard.** The plugin and the `use_figma` scripts refuse to run on any Figma file but the one in `figma.fileKey`, or while it's empty. Figma gives the plugin the file's key through `enablePrivatePluginApi`, which `s58-tokens figma plugin` now writes into the manifest, adding it to an existing one, and `s58-tokens check` requires. The optional `figma.fileName` is a fallback for when Figma doesn't give the key.
+- The plugin's report shows the package version it was built with.
+- **Breaking:** `buildFigmaPlugin`, `buildVariablesScript`, `buildTextStylesScript` and `figmaScript` take the file guard (`fileGuardFor(config)`) as a required argument. The CLI passes it.
+
 ## 0.1.0
 
 The first release, moved out of signal58-marketing's workspace.

@@ -71,7 +71,7 @@ Each built file goes through the project's formatter as it's written, when the c
 - a generated file doesn't match the configs and Figma exports: a config changed or Figma was re-exported without a rebuild, or someone edited a generated file;
 - a semantic token with code syntax has a raw value instead of a reference (semantics point only at primitives or at other semantics);
 - a generated scale misses an APCA floor that `check.allowApcaMisses` doesn't accept (`'amber 6 on white'`);
-- the plugin's manifest names a different plugin from the config.
+- the plugin's manifest names a different plugin from the config, or doesn't set `enablePrivatePluginApi` (the file guard needs it).
 
 `checkTokens(config)` returns the same problems, for tests.
 
@@ -81,7 +81,16 @@ Figma's REST API can't write variables or styles on a Pro plan, so the code runs
 
 `s58-tokens figma plugin` writes `design-tokens/figma-plugin/code.js` (keep it out of Git) and, when it's missing, `manifest.json` with the plugin's name and id from the config (commit it). Import the manifest once in Figma desktop (**Plugins → Development → Import plugin from manifest…**), then rebuild and rerun as the configs change. Give each project its own plugin id, so a designer can import several projects' plugins side by side.
 
-The Figma-side code (`src/figma/*.figma.js` and `plugin-ui.html`) is the same for every project; only the configs, inlined as JSON, differ.
+The Figma-side code (`src/figma/*.figma.js` and `plugin-ui.html`) is the same for every project; only the configs, inlined as JSON, differ. The plugin's report shows the package version it was built with, next to the build time.
+
+### The file guard
+
+The plugin and every `use_figma` script check which Figma file they're in before they read or change anything, so one project's tokens can't land in another project's file. They compare the file's key with `figma.fileKey` in `tokens.config.ts`, and refuse:
+
+- any other file;
+- every file while `figma.fileKey` is empty (`init` leaves it empty unless given `--file-key=`), so record the key, from the file's URL (`figma.com/design/<file key>/…`), before the first run.
+
+Figma gives a plugin the file's key only when its manifest sets `"enablePrivatePluginApi": true`. `s58-tokens figma plugin` writes that, and adds it to an existing manifest. `use_figma` always has the key. If Figma doesn't give the key, the guard falls back to the file's name when the config sets `figma.fileName`, and otherwise refuses. A refused `use_figma` script throws, so nothing in the run is kept.
 
 ## Installing
 

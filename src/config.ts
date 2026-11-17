@@ -6,6 +6,7 @@ import path from 'node:path'
 
 import { createJiti } from 'jiti'
 
+import type { FileGuard } from './figma/inline'
 import { buildTextStyleSpec, type TextStyleSpec } from './figma/text-styles'
 import {
   buildVariablesSpec,
@@ -24,8 +25,16 @@ export interface TokensConfig {
   /** The project, as people call it: `S58 Marketing`. */
   name: string
   figma: {
-    /** The Figma file the tokens belong to. */
+    /**
+     * The Figma file the tokens belong to, from its URL: figma.com/design/<file key>/…. The plugin
+     * and the use_figma scripts refuse to run on any other file, or while this is empty.
+     */
     fileKey: string
+    /**
+     * Optional: the file's name, which the guard checks only when Figma doesn't give the plugin the
+     * file's key. Renaming the file then stops the plugin until this is updated.
+     */
+    fileName?: string
     /** The project's development plugin. The id must be unique among the plugins a designer imports. */
     plugin: {
       name: string
@@ -85,6 +94,12 @@ export async function loadTokensConfig(
     throw new Error(`${file} must export a token config (defineTokens) as its default export`)
   }
   return config
+}
+
+/** The Figma file the project's plugin and use_figma scripts may touch. */
+export function fileGuardFor(config: TokensConfig): FileGuard {
+  const { fileKey, fileName } = config.figma
+  return { project: config.name, fileKey, ...(fileName ? { fileName } : {}) }
 }
 
 /** The variables module's spec for a project: Utopia, letter spacing and colour primitives. */
