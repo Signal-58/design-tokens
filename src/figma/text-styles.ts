@@ -14,7 +14,8 @@ import { figmaScript } from './inline'
 export interface TextStyleSpec {
   figma: { fontCollection: string; sizeCollection: string }
   groups: string[]
-  fontVariables: { variable: string; value: string }[]
+  /** `kind` sets the scope of a variable the module creates: font family or font style. */
+  fontVariables: { variable: string; value: string; kind: 'family' | 'weight' }[]
   styles: {
     name: string
     description: string
@@ -69,10 +70,12 @@ export function buildTextStyleSpec(
     ...Object.entries(fonts.families).map(([key, value]) => ({
       variable: `${figma.fontFamilyGroup}/${key}`,
       value,
+      kind: 'family' as const,
     })),
     ...Object.entries(fonts.weights).map(([key, value]) => ({
       variable: `${figma.fontWeightGroup}/${key}`,
       value,
+      kind: 'weight' as const,
     })),
   ]
 

@@ -44,7 +44,8 @@ export async function applyVariables(spec, dryRun) {
       : v
   const sameScopes = (a, b) => a.length === b.length && a.every((s) => b.includes(s))
   const profileOk = !spec.colorProfile || figma.root.documentColorProfile === spec.colorProfile
-  if (!profileOk) {
+  const hasColours = spec.collections.some((c) => c.variables.some((v) => v.type === 'COLOR'))
+  if (!profileOk && hasColours) {
     report.warnings.push(
       `The file's colour profile is ${figma.root.documentColorProfile}, not ${spec.colorProfile}: colour variables were skipped. Change it in File > Color profile, then run again.`,
     )

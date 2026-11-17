@@ -4,7 +4,8 @@
  * use_figma tool, each with the spec built from design-tokens/typography.config.ts.
  *
  * It only touches what the spec names:
- * - the font family and weight variables listed in the spec (default mode only)
+ * - the font family and weight variables listed in the spec (default mode only), created with
+ *   their collection when missing, so it works on a blank file
  * - text styles named `<group>/Step <n>` for each role in the spec
  * Styles in a role's group that the spec doesn't list are reported as orphans, never deleted.
  *
@@ -92,9 +93,17 @@ export async function applyTextStyles(spec, dryRun) {
     if (!collection) throw new Error(`No variable collection named "${name}"`)
     return collection
   }
-  const fontCollection = collectionNamed(spec.figma.fontCollection)
+  // The font collection and its variables are created when missing, so the module works on a
+  // blank file. In a dry run they're stand-ins with no id that Figma knows.
+  let fontCollection = collections.find((c) => c.name === spec.figma.fontCollection)
+  if (!fontCollection) {
+    report.variables.push({ name: spec.figma.fontCollection, from: 'none', to: 'new collection' })
+    fontCollection = dryRun
+      ? { id: '(new collection)', name: spec.figma.fontCollection, modes: [], defaultModeId: null }
+      : figma.variables.createVariableCollection(spec.figma.fontCollection)
+  }
   const sizeCollection = collectionNamed(spec.figma.sizeCollection)
-  const allVariables = await figma.variables.getLocalVariablesAsync()
+  const allVariables = [...(await figma.variables.getLocalVariablesAsync())]
   const variableNamed = (collection, name) => {
     const variable = allVariables.find(
       (v) => v.variableCollectionId === collection.id && v.name === name,
@@ -113,6 +122,26 @@ export async function applyTextStyles(spec, dryRun) {
   const fontValues = {}
   const variableWrites = []
   for (const entry of spec.fontVariables) {
+    const exists = allVariables.some(
+      (v) => v.variableCollectionId === fontCollection.id && v.name === entry.variable,
+    )
+    if (!exists) {
+      report.variables.push({ name: entry.variable, from: 'none', to: entry.value })
+      fontValues[entry.variable] = entry.value
+      if (dryRun) {
+        allVariables.push({
+          id: `(new) ${entry.variable}`,
+          name: entry.variable,
+          variableCollectionId: fontCollection.id,
+        })
+        continue
+      }
+      const created = figma.variables.createVariable(entry.variable, fontCollection, 'STRING')
+      created.scopes = [entry.kind === 'weight' ? 'FONT_STYLE' : 'FONT_FAMILY']
+      created.setValueForMode(fontCollection.defaultModeId, entry.value)
+      allVariables.push(created)
+      continue
+    }
     const variable = variableNamed(fontCollection, entry.variable)
     const current = variable.valuesByMode[fontCollection.defaultModeId]
     if (typeof current === 'object' && current !== null) {
