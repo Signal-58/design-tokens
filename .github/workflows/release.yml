@@ -1,0 +1,79 @@
+name: Release
+
+# Run by hand with the version in package.json. It runs CI, builds the package and tags a commit
+# that holds the build, so projects can install a tag (github:Signal-58/design-tokens#v0.1.0)
+# without building anything. main keeps only the source. Publishing to npm comes later.
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: The version in package.json, without the v (0.1.0)
+        required: true
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+jobs:
+  ci:
+    uses: ./.github/workflows/ci.yml
+
+  tag:
+    name: Tag the build
+    needs: ci
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: write
+    env:
+      VERSION: ${{ inputs.version }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+      - uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: Check the version
+        run: |
+          package=$(node -p "require('./package.json').version")
+          if [ "$VERSION" != "$package" ]; then
+            echo "package.json says $package, not $VERSION." >&2
+            exit 1
+          fi
+          if git rev-parse -q --verify "refs/tags/v$VERSION" >/dev/null; then
+            echo "v$VERSION is tagged already." >&2
+            exit 1
+          fi
+          grep -q "^## $VERSION$" CHANGELOG.md || { echo "CHANGELOG.md has no ## $VERSION." >&2; exit 1; }
+      - run: pnpm build
+      - run: pnpm check:package
+      - name: Commit the build and tag it
+        run: |
+          # The tagged package.json points at dist/ and has no script that would build at install.
+          node -e "
+            const fs = require('fs')
+            const p = JSON.parse(fs.readFileSync('package.json', 'utf8'))
+            p.exports = p.publishConfig.exports
+            delete p.publishConfig
+            delete p.scripts.prepack
+            fs.writeFileSync('package.json', JSON.stringify(p, null, 2) + '\n')
+          "
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add --force dist package.json
+          git commit --quiet -m "release: v$VERSION"
+          git tag -a "v$VERSION" -m "v$VERSION"
+          git push origin "v$VERSION"
+      - name: GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          awk -v v="$VERSION" '$0 == "## " v {on = 1; next} /^## / {on = 0} on' CHANGELOG.md > notes.md
+          gh release create "v$VERSION" --title "v$VERSION" --notes-file notes.md --verify-tag

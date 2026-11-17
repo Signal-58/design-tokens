@@ -10,7 +10,7 @@
  * Styles in a role's group that the spec doesn't list are reported as orphans, never deleted.
  *
  * The MCP runs in Figma's cloud, which can't load fonts installed only on a designer's computer
- * (Futura Std, Nudica). Figma lets a style be bound to a font variable without loading the font,
+ * (licensed brand fonts, for example). Figma lets a style be bound to a font variable without loading the font,
  * but not edited afterwards. So each style is written in a placeholder font that is always
  * available, and the font variables are bound last.
  *

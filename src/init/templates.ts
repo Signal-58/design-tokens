@@ -2,7 +2,7 @@
  * The starter configs `s58-tokens init` writes: S58 Marketing's structure and rules (its contrast
  * ladder, chroma curve and APCA floors, its letter spacing and line height rules, its Utopia
  * settings and its Figma collection, group and role names) with placeholder brand inputs: three
- * colour scales and Inter. Decided 2026-11-17 (signal58-infra docs/design-tokens-package.md).
+ * colour scales and Inter.
  */
 
 export interface StarterOptions {

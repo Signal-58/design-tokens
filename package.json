@@ -1,9 +1,22 @@
 {
   "name": "@signal58/design-tokens",
   "version": "0.1.0",
-  "private": true,
   "description": "Design tokens from code: OKLCH palettes on a contrast ladder, fluid type and space, type rules, and a Figma plugin that writes them into your file.",
-  "license": "UNLICENSED",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Signal-58/design-tokens.git"
+  },
+  "homepage": "https://github.com/Signal-58/design-tokens#readme",
+  "keywords": [
+    "design-tokens",
+    "dtcg",
+    "style-dictionary",
+    "figma",
+    "oklch",
+    "utopia",
+    "fluid-type"
+  ],
   "type": "module",
   "sideEffects": false,
   "bin": {
@@ -25,16 +38,24 @@
   "files": [
     "bin",
     "dist",
-    "README.md"
+    "README.md",
+    "LICENSE"
   ],
   "scripts": {
     "build": "node scripts/build.mjs",
+    "check": "tsc --noEmit && oxlint && oxfmt --check",
     "check:package": "node scripts/check-package.mjs",
-    "prepack": "node scripts/build.mjs"
+    "format": "oxfmt",
+    "format:check": "oxfmt --check",
+    "lint": "oxlint",
+    "prepack": "node scripts/build.mjs",
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit"
   },
   "engines": {
     "node": ">=20"
   },
+  "packageManager": "pnpm@11.20.0",
   "dependencies": {
     "jiti": "2.6.1",
     "style-dictionary": "5.8.0",
@@ -43,7 +64,10 @@
   "devDependencies": {
     "@arethetypeswrong/cli": "0.18.5",
     "@types/node": "24.11.1",
+    "oxfmt": "0.73.0",
+    "oxlint": "1.88.0",
     "publint": "0.3.25",
-    "typescript": "7.0.2"
+    "typescript": "7.0.2",
+    "vitest": "5.0.5"
   }
 }

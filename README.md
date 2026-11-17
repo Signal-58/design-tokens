@@ -83,6 +83,35 @@ Figma's REST API can't write variables or styles on a Pro plan, so the code runs
 
 The Figma-side code (`src/figma/*.figma.js` and `plugin-ui.html`) is the same for every project; only the configs, inlined as JSON, differ.
 
-## In this repository
+## Installing
 
-The package lives in signal58-marketing's workspace until a second project needs it, then moves to its own repository (signal58-infra `docs/design-tokens-package.md`). Marketing's docs describe how its tokens use it: `docs/PALETTE.md`, `docs/TYPOGRAPHY_ROLES.md`, `docs/FIGMA_TOKENS_PLUGIN.md`, `docs/RESPONSIVE_TOKENS.md`. Its tests are in marketing's `scripts/tokens/__tests__/` for now, because they also check marketing's own configs.
+Until it's on npm, install it from a release tag of this repository:
+
+```json
+{
+  "devDependencies": {
+    "@signal58/design-tokens": "github:Signal-58/design-tokens#v0.1.0"
+  }
+}
+```
+
+Each release tag is a commit with the built package in `dist/`, so nothing is built at install time and pnpm needs no `allowBuilds` entry for it. The lockfile pins the tag's commit, and Renovate can update the tag.
+
+## Developing
+
+```bash
+pnpm install
+pnpm test          # palette maths, the Figma modules against a stand-in for the Plugin API, init → build → check
+pnpm check         # types, lint, format
+pnpm build         # dist/
+pnpm check:package # packs the package and runs publint and attw on the tarball
+```
+
+The tests run the code that runs inside Figma against a stand-in for the parts of the Plugin API it uses, which behaves like Figma's cloud runner: it can load only Inter.
+
+## Releases
+
+1. Set `version` in `package.json` and add the version to `CHANGELOG.md`, on `main`.
+2. Run the **Release** workflow (Actions → Release → Run workflow) with that version.
+
+The workflow runs CI, builds the package, and tags a commit that holds the build: `package.json` points at `dist/`, and the build scripts that would run at install are removed. `main` keeps only the source.
