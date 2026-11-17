@@ -16,6 +16,7 @@ import {
 import type { UtopiaConfig } from './fluid/utopia'
 import { buildPalette } from './palette/palette'
 import type { PaletteConfig } from './palette/types'
+import type { BuildConfig } from './style-dictionary'
 import type { BreakpointsConfig, FluidToolConfig } from './responsive/breakpoints'
 import type { TypographyConfig } from './type/rules'
 
@@ -41,6 +42,10 @@ export interface TokensConfig {
   breakpoints?: BreakpointsConfig
   /** Where `_fluid.scss` goes. Without it, no helper is written. */
   fluidTool?: FluidToolConfig
+  /** Where `s58-tokens generate` writes the DTCG files, from the project root. Default `design-tokens/generated`. */
+  generated?: string
+  /** What `s58-tokens build` writes with Style Dictionary, and the Figma exports it reads. */
+  build?: BuildConfig
 }
 
 /** Checks the config and returns it. The CLI reads it as the default export of tokens.config.ts. */

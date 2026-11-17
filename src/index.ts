@@ -31,3 +31,15 @@ export {
   type TextStyleSpec,
 } from './figma/text-styles'
 export * from './figma/variables'
+
+export {
+  buildTokenFiles,
+  tokenTree,
+  writeDtcg,
+  type BuildConfig,
+  type BuildFile,
+  type ProjectFormat,
+} from './style-dictionary'
+export * from './style-dictionary/formats'
+export * from './dtcg/generate'
+export { figmaColourTokens, figmaFluidTokens, mergeTrees } from './dtcg/figma'

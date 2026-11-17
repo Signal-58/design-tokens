@@ -149,6 +149,8 @@ export interface TypographyConfig {
   fonts: TypographyFonts
   /** Letter spacing for every type step, in em (buildLetterSpacingScale). */
   letterSpacingScale: Readonly<Record<number, number>>
+  /** Line height rules, one per kind of text, written as `--line-height-<kind>-<step>`. */
+  lineHeightRules?: Readonly<Record<string, StepRule>>
   roles: Readonly<Record<string, TypographyRole>>
 }
 

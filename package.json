@@ -37,6 +37,7 @@
   },
   "dependencies": {
     "jiti": "2.6.1",
+    "style-dictionary": "5.8.0",
     "utopia-core": "1.6.0"
   },
   "devDependencies": {

@@ -27,7 +27,8 @@ The command reads `design-tokens/tokens.config.ts`'s default export. The configs
 Run it from the project root, usually through the project's `package.json` scripts:
 
 ```bash
-s58-tokens build                    # breakpoint SCSS and _fluid.scss
+s58-tokens generate                 # the DTCG files in design-tokens/generated
+s58-tokens build                    # generate, then every file in build.files, breakpoints and _fluid.scss
 s58-tokens palette report           # contrast on white and black, APCA floors, gamut fit
 s58-tokens figma plugin [--watch]   # <plugin dir>/code.js, all modules
 s58-tokens figma script variables --dry-run --collections=Primitives   # for the Figma MCP's use_figma
@@ -35,6 +36,16 @@ s58-tokens figma script text-styles --dry-run --roles=heading,default
 ```
 
 `--config=<file>` reads another config.
+
+## The build
+
+`s58-tokens build` writes the primitives as DTCG files (format 2025.10) to `design-tokens/generated/`: `palette.tokens.json` and `fluid.tokens.json`. Commit them; other tools and platforms can read them. It then reads them, plus the Figma exports listed in `build.semantics`, through [Style Dictionary](https://styledictionary.com) 5 and writes each file in `build.files`:
+
+- **Names** come from each token's Figma code syntax (`com.figma.codeSyntax.WEB`). The generated tokens carry the same code syntax the plugin writes into Figma, and a semantic token without code syntax doesn't reach code.
+- **Figma's colour exports** go in under `color.<mode>`, and each alias to `primitive/colors/…` becomes a reference to the generated palette. Figma's own resolved values are dropped: in a Display P3 file they're P3 numbers labelled `srgb`.
+- **Formats** in the package: `s58/scss/colour-primitives`, `s58/scss/semantic-colours`, `s58/scss/font-size-primitives`, `s58/scss/space-primitives`, `s58/scss/letter-spacing-primitives`, `s58/scss/line-height-primitives`, `s58/scss/line-height-utilities` and `s58/scss/fluid-semantics`. Each reads the whole dictionary and picks its tokens by path. A project adds its own under `build.formats`, using the helpers the package exports (`semanticColourEntries`, `fluidEntries`, `fontSizeEntries`).
+
+`buildTokenFiles(config)` returns the same files without writing them, for tests.
 
 ## The Figma plugin
 

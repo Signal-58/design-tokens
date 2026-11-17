@@ -2,7 +2,9 @@
  * The s58-tokens command. Run it from the project root; it reads design-tokens/tokens.config.ts
  * (or --config=<file>).
  *
- *   s58-tokens build                                  # breakpoints and _fluid.scss
+ *   s58-tokens generate                               # the DTCG files in design-tokens/generated
+ *   s58-tokens build                                  # generate, then every file in build.files,
+ *                                                     # the breakpoints and _fluid.scss
  *   s58-tokens palette report                         # contrast, APCA floors, gamut fit
  *   s58-tokens figma plugin [--watch]                 # <plugin dir>/code.js, all modules
  *   s58-tokens figma script variables --dry-run [--collections=Primitives]   # use_figma
@@ -22,6 +24,7 @@ import {
   variablesSpecFor,
   type TokensConfig,
 } from './config'
+import { buildTokenFiles, writeDtcg } from './style-dictionary'
 import { buildFigmaPlugin } from './figma/plugin'
 import { buildTextStylesScript } from './figma/text-styles'
 import { buildVariablesScript } from './figma/variables'
@@ -38,7 +41,8 @@ const USE_FIGMA_LIMIT = 50_000
 
 const USAGE = `Usage: s58-tokens [--config=<file>] <command>
 
-  build                                  Write the breakpoint SCSS and _fluid.scss
+  generate                               Write the DTCG files (design-tokens/generated)
+  build                                  Generate, then write every file the config lists
   palette report                         Contrast on white and black, APCA floors, gamut fit
   figma plugin [--watch]                 Build the project's Figma plugin (code.js)
   figma script <variables|text-styles>   A use_figma script, on stdout
@@ -56,12 +60,10 @@ function write(file: string, contents: string): void {
   process.stdout.write(`  -> ${file}\n`)
 }
 
-function build(config: TokensConfig): void {
+async function build(config: TokensConfig): Promise<void> {
+  for (const file of writeDtcg(config)) process.stdout.write(`  -> ${file}\n`)
+  for (const { destination, output } of await buildTokenFiles(config)) write(destination, output)
   const { breakpoints, fluidTool, utopia } = config
-  if (!breakpoints && !fluidTool) {
-    process.stdout.write('Nothing to build: the config has no breakpoints or fluidTool.\n')
-    return
-  }
   if (breakpoints) {
     write(breakpoints.output.scss, generateBreakpointsScss(breakpoints, utopia.viewport))
     write(breakpoints.output.css, generateBreakpointsCssScss(breakpoints))
@@ -170,6 +172,12 @@ async function main(argv: string[]): Promise<void> {
   const args = argv.filter((a) => !a.startsWith('--config='))
   const [command, sub, ...rest] = args
 
+  if (command === 'generate') {
+    for (const file of writeDtcg(await loadTokensConfig(configFile))) {
+      process.stdout.write(`  -> ${file}\n`)
+    }
+    return
+  }
   if (command === 'build') return build(await loadTokensConfig(configFile))
   if (command === 'palette' && sub === 'report') {
     const config = await loadTokensConfig(configFile)
