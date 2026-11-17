@@ -4,6 +4,8 @@
  */
 import type { UtopiaSpaceConfig, UtopiaTypeConfig } from 'utopia-core'
 
+export type { UtopiaSpaceConfig, UtopiaTypeConfig }
+
 /** The viewport range the scales are fluid across, in px. */
 export interface UtopiaViewport {
   minWidth: number

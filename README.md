@@ -8,6 +8,22 @@ Design tokens that start in code and land in Figma:
 - **Breakpoints** (optional) and a `_fluid.scss` helper for one-off fluid values, on the same viewport as the scales.
 - **A Figma plugin**, built for each project from its own configs, that writes the primitives, the fluid tokens that alias them, scopes, code syntax and text styles into the project's file. It dry-runs first and never deletes.
 
+## Starting a project
+
+```bash
+s58-tokens init --name="Acme" --brand="#E50E3F" --accent="#F3A512" --neutral="#8B8D92"
+s58-tokens build
+s58-tokens figma plugin
+```
+
+`init` writes `design-tokens/` with S58 Marketing's structure and rules and placeholder brand inputs:
+
+- **Kept from S58 Marketing:** the contrast ladder, chroma curve and APCA floors; the letter spacing and line height rules; the Utopia settings and viewport, as a first guess to tune at kickoff; and the Figma collection, group and role names. They match the S58 starter Figma file.
+- **Placeholders:** three colour scales (brand, accent and a neutral across the whole range), from the colours given or placeholder ones. Inter for every font family.
+- **Left out until the project needs them:** breakpoints, `_fluid.scss` (it needs `utopia-core-scss`), the semantic colours (export them from Figma first) and a formatter. `tokens.config.ts` shows each one, commented out.
+
+The built SCSS goes to `src/styles/tokens` (`--out=` to change it). `--file-key=` records the Figma file, `--id=` sets the plugin id (default `<name>-tokens-dev`), and `--force` overwrites existing files; without it, `init` refuses.
+
 ## A project's configs
 
 A project keeps its configs in `design-tokens/`, each wrapped in a helper that checks it:

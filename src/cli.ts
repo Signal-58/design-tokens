@@ -2,6 +2,7 @@
  * The s58-tokens command. Run it from the project root; it reads design-tokens/tokens.config.ts
  * (or --config=<file>).
  *
+ *   s58-tokens init --name="Acme" --brand=#2F5BEA   # a new project's design-tokens/ folder
  *   s58-tokens generate                               # the DTCG files in design-tokens/generated
  *   s58-tokens build                                  # generate, then every file in build.files,
  *                                                     # the breakpoints and _fluid.scss
@@ -26,6 +27,8 @@ import {
   type TokensConfig,
 } from './config'
 import { checkTokens } from './check'
+import { initProject } from './init'
+import { pluginManifest } from './figma/manifest'
 import { buildFigmaPlugin } from './figma/plugin'
 import { buildTextStylesScript } from './figma/text-styles'
 import { buildVariablesScript } from './figma/variables'
@@ -37,6 +40,9 @@ const USE_FIGMA_LIMIT = 50_000
 
 const USAGE = `Usage: s58-tokens [--config=<file>] <command>
 
+  init --name=<project> [--brand=<colour>] [--accent=<colour>] [--neutral=<colour>]
+       [--file-key=<key>] [--id=<plugin id>] [--out=<dir>] [--force]
+                                         Write a new project's design-tokens/ configs
   generate                               Write the DTCG files (design-tokens/generated)
   build                                  Generate, then write every file the config lists
   check                                  Report files out of date with the configs, raw
@@ -90,16 +96,7 @@ function ensureManifest(config: TokensConfig): void {
     }
     return
   }
-  const manifest = {
-    name,
-    id,
-    api: '1.0.0',
-    main: 'code.js',
-    editorType: ['figma'],
-    documentAccess: 'dynamic-page',
-    networkAccess: { allowedDomains: ['none'] },
-  }
-  write(file, `${JSON.stringify(manifest, null, 2)}\n`)
+  write(file, pluginManifest(config.figma.plugin))
 }
 
 function buildPlugin(config: TokensConfig): void {
@@ -171,6 +168,23 @@ async function main(argv: string[]): Promise<void> {
   const args = argv.filter((a) => !a.startsWith('--config='))
   const [command, sub, ...rest] = args
 
+  if (command === 'init') {
+    const written = initProject(
+      {
+        name: option(argv, 'name') ?? '',
+        id: option(argv, 'id'),
+        fileKey: option(argv, 'file-key'),
+        brand: option(argv, 'brand'),
+        accent: option(argv, 'accent'),
+        neutral: option(argv, 'neutral'),
+        out: option(argv, 'out'),
+      },
+      { force: argv.includes('--force') },
+    )
+    for (const file of written) process.stdout.write(`  -> ${file}\n`)
+    process.stdout.write('Next: s58-tokens build, then s58-tokens figma plugin.\n')
+    return
+  }
   if (command === 'generate') {
     for (const { destination, output } of dtcgFiles(await loadTokensConfig(configFile))) {
       write(destination, output)
