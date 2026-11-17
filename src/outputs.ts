@@ -4,6 +4,8 @@
  * what `build` writes and what `check` compares is what the repository keeps.
  */
 import { spawnSync } from 'node:child_process'
+import fs from 'node:fs'
+import path from 'node:path'
 
 import type { TokensConfig } from './config'
 import { generateDtcg } from './dtcg/generate'
@@ -21,17 +23,31 @@ export interface OutputFile {
   output: string
 }
 
-/** Runs the project's format command on one file's contents, as if they were at `file`. */
-export function formatOutput(config: TokensConfig, file: string, contents: string): string {
+/**
+ * Runs the project's format command on one file's contents, as if they were at `file`. The command
+ * is looked up in the project's node_modules/.bin first, so it works outside package scripts too.
+ */
+export function formatOutput(
+  config: TokensConfig,
+  file: string,
+  contents: string,
+  root = process.cwd(),
+): string {
   const command = config.format?.command
   if (!command?.length) return contents
-  const [cmd, ...args] = command.map((part) => part.replaceAll('{file}', file))
+  const [name, ...args] = command.map((part) => part.replaceAll('{file}', file))
+  const local = path.join(root, 'node_modules', '.bin', name)
+  const cmd = fs.existsSync(local) ? local : name
   const result = spawnSync(cmd, args, {
     input: contents,
     encoding: 'utf8',
     shell: process.platform === 'win32',
   })
-  if (result.error) throw result.error
+  if (result.error) {
+    throw new Error(
+      `Can't run the format command ${name} (format.command in the token config): ${result.error.message}`,
+    )
+  }
   if (result.status !== 0) {
     throw new Error(`${command.join(' ')} failed on ${file}:\n${result.stderr}`)
   }
@@ -69,5 +85,5 @@ export async function builtFiles(
       output: generateFluidToolScss(utopia.viewport, utopiaScssFrom(fluidTool.output)),
     })
   }
-  return files.map((f) => ({ ...f, output: formatOutput(config, f.destination, f.output) }))
+  return files.map((f) => ({ ...f, output: formatOutput(config, f.destination, f.output, root) }))
 }
