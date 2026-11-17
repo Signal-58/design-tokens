@@ -21,6 +21,7 @@ import { fileURLToPath } from 'node:url'
 
 import {
   DEFAULT_CONFIG_PATH,
+  fileGuardFor,
   loadTokensConfig,
   textStylesSpecFor,
   variablesSpecFor,
@@ -41,7 +42,7 @@ const USE_FIGMA_LIMIT = 50_000
 const USAGE = `Usage: s58-tokens [--config=<file>] <command>
 
   init --name=<project> [--brand=<colour>] [--accent=<colour>] [--neutral=<colour>]
-       [--file-key=<key>] [--id=<plugin id>] [--out=<dir>] [--force]
+       [--file-key=<key or link>] [--id=<plugin id>] [--out=<dir>] [--force]
                                          Write a new project's design-tokens/ configs
   generate                               Write the DTCG files (design-tokens/generated)
   build                                  Generate, then write every file the config lists
@@ -83,16 +84,22 @@ async function check(config: TokensConfig): Promise<void> {
 
 const pluginDir = (config: TokensConfig) => config.figma.plugin.dir ?? 'design-tokens/figma-plugin'
 
-/** The manifest Figma imports. Written when missing; an existing one is left alone. */
+/**
+ * The manifest Figma imports. Written when missing. An existing one is left alone, except that
+ * `enablePrivatePluginApi` is added when it's missing, because the file guard needs it.
+ */
 function ensureManifest(config: TokensConfig): void {
   const file = path.join(pluginDir(config), 'manifest.json')
   const { name, id } = config.figma.plugin
   if (fs.existsSync(file)) {
-    const manifest = JSON.parse(fs.readFileSync(file, 'utf8')) as { name?: string; id?: string }
+    const manifest = JSON.parse(fs.readFileSync(file, 'utf8')) as Record<string, unknown>
     if (manifest.name !== name || manifest.id !== id) {
       process.stderr.write(
         `${file} names the plugin "${manifest.name}" (${manifest.id}); the config says "${name}" (${id}).\n`,
       )
+    }
+    if (manifest.enablePrivatePluginApi !== true) {
+      write(file, `${JSON.stringify({ ...manifest, enablePrivatePluginApi: true }, null, 2)}\n`)
     }
     return
   }
@@ -101,10 +108,15 @@ function ensureManifest(config: TokensConfig): void {
 
 function buildPlugin(config: TokensConfig): void {
   ensureManifest(config)
-  const code = buildFigmaPlugin({
-    variables: variablesSpecFor(config),
-    textStyles: textStylesSpecFor(config),
-  })
+  if (!config.figma.fileKey) {
+    process.stderr.write(
+      'figma.fileKey is empty in the token config, so the plugin will refuse to run until it is set.\n',
+    )
+  }
+  const code = buildFigmaPlugin(
+    { variables: variablesSpecFor(config), textStyles: textStylesSpecFor(config) },
+    fileGuardFor(config),
+  )
   const file = path.join(pluginDir(config), 'code.js')
   fs.writeFileSync(file, code)
   const time = new Date().toLocaleTimeString('en-GB')
@@ -148,9 +160,13 @@ function script(config: TokensConfig, args: string[]): void {
       if (unknown.length) throw new Error(`Unknown collections: ${unknown.join(', ')}`)
       spec.collections = spec.collections.filter((c) => names.includes(c.name))
     }
-    code = buildVariablesScript(spec, dryRun)
+    code = buildVariablesScript(spec, dryRun, fileGuardFor(config))
   } else if (module === 'text-styles') {
-    code = buildTextStylesScript(textStylesSpecFor(config, list(option(args, 'roles'))), dryRun)
+    code = buildTextStylesScript(
+      textStylesSpecFor(config, list(option(args, 'roles'))),
+      dryRun,
+      fileGuardFor(config),
+    )
   } else {
     throw new Error(USAGE)
   }

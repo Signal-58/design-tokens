@@ -5,6 +5,7 @@
 import fs from 'node:fs'
 import path from 'node:path'
 
+import { fileKeyFrom } from '../figma/file-key'
 import { pluginManifest } from '../figma/manifest'
 import { parseColour } from '../palette/colour'
 import { slugOf, starterFiles, type StarterOptions } from './templates'
@@ -25,6 +26,13 @@ export function initProject(
       } catch {
         throw new Error(`--${key}=${colour} isn't a hex code or oklch(L C H)`)
       }
+    }
+  }
+  if (options.fileKey) {
+    try {
+      options = { ...options, fileKey: fileKeyFrom(options.fileKey) }
+    } catch (error) {
+      throw new Error(`--file-key: ${error instanceof Error ? error.message : String(error)}`)
     }
   }
   const id = options.id ?? `${slugOf(options.name)}-tokens-dev`

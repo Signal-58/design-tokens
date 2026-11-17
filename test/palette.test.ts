@@ -23,6 +23,7 @@ import {
   type PaletteConfig as FullPaletteConfig,
   type VariablesSpec,
 } from '../src/index'
+import { FILE, inFile } from './file-guard'
 
 type PaletteConfig = Omit<FullPaletteConfig, 'figma'>
 
@@ -249,7 +250,7 @@ function mockFigma(profile: string, seed: Partial<MockVariable>[] = []) {
 
 async function run(script: string, figma: unknown) {
   const AsyncFunction = Object.getPrototypeOf(async () => {}).constructor
-  return new AsyncFunction('figma', script)(figma)
+  return new AsyncFunction('figma', script)(inFile(figma as object))
 }
 
 describe('applying colour variables', () => {
@@ -269,7 +270,7 @@ describe('applying colour variables', () => {
 
   it('creates values first, then aliases to them', async () => {
     const { figma, byName } = mockFigma('DISPLAY_P3')
-    const report = await run(buildVariablesScript(spec, false), figma)
+    const report = await run(buildVariablesScript(spec, false, FILE), figma)
     expect(report.created.map((c: { name: string }) => c.name)).toEqual([
       'Primitives: p/teal/2',
       'Primitives: p/teal/ref',
@@ -286,19 +287,19 @@ describe('applying colour variables', () => {
       { id: 'two', name: 'p/teal/2', valuesByMode: { m0: { r: 0.1, g: 0.50004, b: 0.6, a: 1 } } },
       { name: 'p/teal/ref', valuesByMode: { m0: { r: 0, g: 0, b: 0, a: 1 } } },
     ])
-    const report = await run(buildVariablesScript(spec, false), figma)
+    const report = await run(buildVariablesScript(spec, false, FILE), figma)
     expect(report.unchanged).toBe(1)
     expect(report.updated).toEqual([
       { name: 'Primitives: p/teal/ref', to: 'alias to p/teal/2', from: 'rgba(0, 0, 0, 1)' },
     ])
     expect(byName('p/teal/ref')?.valuesByMode.m0).toEqual({ type: 'VARIABLE_ALIAS', id: 'two' })
-    const again = await run(buildVariablesScript(spec, false), figma)
+    const again = await run(buildVariablesScript(spec, false, FILE), figma)
     expect(again.unchanged).toBe(2)
   })
 
   it('skips colours when the file has another colour profile', async () => {
     const { figma, byName } = mockFigma('SRGB')
-    const report = await run(buildVariablesScript(spec, false), figma)
+    const report = await run(buildVariablesScript(spec, false, FILE), figma)
     expect(report.created).toEqual([])
     expect(byName('p/teal/2')).toBeUndefined()
     expect(report.warnings[0]).toMatch(/colour profile is SRGB, not DISPLAY_P3/)
@@ -306,7 +307,7 @@ describe('applying colour variables', () => {
 
   it('changes nothing in a dry run', async () => {
     const { figma, byName } = mockFigma('DISPLAY_P3')
-    const report = await run(buildVariablesScript(spec, true), figma)
+    const report = await run(buildVariablesScript(spec, true, FILE), figma)
     expect(report.created).toHaveLength(2)
     expect(byName('p/teal/2')).toBeUndefined()
   })

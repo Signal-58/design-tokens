@@ -10,7 +10,7 @@ export interface StarterOptions {
   name: string
   /** The plugin id. Default: the name in lowercase with hyphens, plus `-tokens-dev`. */
   id?: string
-  /** The Figma file key, when the file exists. */
+  /** The Figma file, when it exists: its key or its link (the key is taken from the link). */
   fileKey?: string
   /** Reference colours: hex or `oklch(L C H)`. */
   brand?: string
@@ -343,7 +343,8 @@ import utopia from ${local('utopia.config')}
 export default defineTokens({
   name: ${quote(o.name)},
   figma: {
-    // The project's Figma file, from its URL: figma.com/design/<file key>/…
+    // The project's Figma file, from its URL: figma.com/design/<file key>/…. The plugin and the
+    // use_figma scripts refuse to run on any other file, or until this is set.
     fileKey: ${quote(o.fileKey ?? '')},
     plugin: { name: ${quote(`${o.name} Tokens`)}, id: ${quote(id)} },
   },

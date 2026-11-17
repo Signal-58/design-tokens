@@ -5,6 +5,7 @@
 export {
   DEFAULT_CONFIG_PATH,
   defineTokens,
+  fileGuardFor,
   loadTokensConfig,
   textStylesSpecFor,
   variablesSpecFor,
@@ -21,8 +22,9 @@ export * from './type/rules'
 export * from './fluid/utopia'
 export * from './responsive/breakpoints'
 
-export { buildFigmaPlugin, type PluginSpecs } from './figma/plugin'
-export { figmaScript, inlineFigmaFunction } from './figma/inline'
+export { buildFigmaPlugin, packageVersion, type PluginSpecs } from './figma/plugin'
+export { fileKeyFrom, isFileKey } from './figma/file-key'
+export { figmaScript, inlineFigmaFunction, type FileGuard } from './figma/inline'
 export {
   buildTextStyleSpec,
   buildTextStylesScript,

@@ -6,7 +6,8 @@
  * - semantic tokens with code syntax whose value is raw instead of a reference: semantics point
  *   only at primitives or at other semantics;
  * - APCA floors a generated scale misses, unless the config accepts that miss;
- * - a plugin manifest whose name or id doesn't match the config.
+ * - a plugin manifest whose name or id doesn't match the config, or that doesn't give the plugin
+ *   the file's key for the file guard (`enablePrivatePluginApi`).
  */
 import fs from 'node:fs'
 import path from 'node:path'
@@ -75,13 +76,21 @@ function manifestProblems(config: TokensConfig, root: string): string[] {
   const manifest = JSON.parse(fs.readFileSync(path.join(root, file), 'utf8')) as {
     name?: string
     id?: string
+    enablePrivatePluginApi?: boolean
   }
   const { name, id } = config.figma.plugin
-  return manifest.name === name && manifest.id === id
-    ? []
-    : [
-        `${file} names the plugin "${manifest.name}" (${manifest.id}); the config says "${name}" (${id}).`,
-      ]
+  const problems: string[] = []
+  if (manifest.name !== name || manifest.id !== id) {
+    problems.push(
+      `${file} names the plugin "${manifest.name}" (${manifest.id}); the config says "${name}" (${id}).`,
+    )
+  }
+  if (manifest.enablePrivatePluginApi !== true) {
+    problems.push(
+      `${file} doesn't set "enablePrivatePluginApi": true, which the file guard needs. Run s58-tokens figma plugin to add it.`,
+    )
+  }
+  return problems
 }
 
 export interface CheckResult {
