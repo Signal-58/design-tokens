@@ -353,6 +353,21 @@ export default defineTokens({
   figmaVariables,
   // A Sass helper for one-off fluid values on the same viewport. Needs utopia-core-scss installed:
   //   fluidTool: { output: '${out}/_fluid.scss' },
+  // Breakpoints: SCSS variables, a media query map for a breakpoint mixin of the project's own,
+  // and CSS custom properties (--bp-min-width-m and so on). S58 Marketing's widths, as a first guess:
+  //   breakpoints: {
+  //     rootFontSize: 16,
+  //     sizes: {
+  //       sm: { minWidth: 480, suffix: 's', label: 'Small devices' },
+  //       md: { minWidth: 768, suffix: 'm', label: 'Medium devices' },
+  //       lg: { minWidth: 1024, suffix: 'l', label: 'Large devices' },
+  //       xl: { minWidth: 1400, suffix: 'xl', label: 'Extra large devices' },
+  //       xxl: { minWidth: 1550, suffix: 'xxl', label: 'Max-width devices' },
+  //     },
+  //     layout: { pageMinContentWidth: 320, pageMaxWidth: 1550 },
+  //     mapName: 'breakpoints',
+  //     output: { scss: '${out}/_breakpoints.scss', css: '${out}/_breakpoints-css.scss' },
+  //   },
   build: {
     // Once designers have set up the semantic colours, export them from Figma (one file per mode)
     // and add them here, with a semantic colours file below:
