@@ -6,6 +6,7 @@ import path from 'node:path'
 
 import { createJiti } from 'jiti'
 
+import { buildColourScopesSpec, type ColourScopesSpec } from './figma/colour-scopes'
 import { fileKeyFrom, isFileKey } from './figma/file-key'
 import type { FileGuard } from './figma/inline'
 import { buildTextStyleSpec, type TextStyleSpec } from './figma/text-styles'
@@ -126,6 +127,12 @@ export function variablesSpecFor(config: TokensConfig): VariablesSpec {
     paletteVariables(buildPalette(palette), palette.figma),
     palette.figma.colorProfile,
   )
+}
+
+/** The colour scopes module's spec for a project, or undefined when it sets none. */
+export function colourScopesSpecFor(config: TokensConfig): ColourScopesSpec | undefined {
+  const rules = config.figmaVariables.colourScopes
+  return rules?.length ? buildColourScopesSpec(rules) : undefined
 }
 
 /** The text styles module's spec for a project, for all roles or the ones named. */

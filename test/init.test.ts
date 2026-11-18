@@ -9,6 +9,7 @@ import {
   dtcgFiles,
   initProject,
   loadTokensConfig,
+  colourScopesSpecFor,
   PLACEHOLDER_COLOURS,
   textStylesSpecFor,
   variablesSpecFor,
@@ -98,6 +99,26 @@ describe('s58-tokens init', () => {
     const built = (await builtFiles(config, root)).map((f) => f.destination)
     expect(built).toContain('src/styles/tokens/_breakpoints.scss')
     expect(built).toContain('src/styles/tokens/_breakpoints-css.scss')
+  })
+
+  it('has a colourScopes example that loads once uncommented', async () => {
+    const root = newProject()
+    initProject({ name: 'Acme' }, { root })
+    const file = path.join(root, 'design-tokens/figma-variables.config.ts')
+    const lines = fs.readFileSync(file, 'utf8').split('\n')
+    const start = lines.indexOf('  // colourScopes: [')
+    expect(start).toBeGreaterThan(-1)
+    for (let i = start; i <= start + 2; i++) lines[i] = lines[i].replace('// ', '')
+    fs.writeFileSync(file, lines.join('\n'))
+
+    const config = await loadTokensConfig(path.join(root, 'design-tokens/tokens.config.ts'))
+    expect(colourScopesSpecFor(config)?.rules).toEqual([
+      {
+        collection: 'Colours',
+        group: 'Typography',
+        scopes: ['TEXT_FILL', 'SHAPE_FILL', 'STROKE_COLOR'],
+      },
+    ])
   })
 
   it('uses the brand colours it is given, and placeholders for the rest', () => {

@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- **Colour scopes.** `colourScopes` in the Figma variables config sets which pickers Figma's own colour variables, such as the semantic colours, appear in, by collection and group. The most specific group wins. A new plugin module and `s58-tokens figma script colour-scopes` set only scopes, never values or names, and report rules that match nothing. The starter config shows an example.
+
 ## 0.2.0
 
 - **File guard.** The plugin and the `use_figma` scripts refuse to run on any Figma file but the one in `figma.fileKey`, or while it's empty. Figma gives the plugin the file's key through `enablePrivatePluginApi`, which `s58-tokens figma plugin` now writes into the manifest, adding it to an existing one, and `s58-tokens check` requires. The optional `figma.fileName` is a fallback for when Figma doesn't give the key.

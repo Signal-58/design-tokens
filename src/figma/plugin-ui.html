@@ -109,6 +109,20 @@
     }
   }
 
+  function colourScopesSection(r) {
+    return {
+      pending: r.updated.length,
+      html:
+        `<h2 class="module">Colour scopes</h2>` +
+        list(
+          r.dryRun ? 'To update' : 'Updated',
+          r.updated.map((u) => `${esc(u.name)}: ${esc(u.from)} → ${esc(u.to)}`),
+        ) +
+        list('Warnings', r.warnings.map(esc), 'warn') +
+        `<p class="muted">${plural(r.unchanged, 'variable')} already scoped as the config says.</p>`,
+    }
+  }
+
   function textStylesSection(r) {
     const pending = r.variables.length + r.created.length + r.updated.length
     return {
@@ -138,6 +152,7 @@
   function render(dryRun, reports, builtAt, version, checkedBy) {
     const sections = [
       reports.variables && variablesSection(reports.variables),
+      reports.colourScopes && colourScopesSection(reports.colourScopes),
       reports.textStyles && textStylesSection(reports.textStyles),
     ].filter(Boolean)
     const pending = sections.reduce((n, s) => n + s.pending, 0)

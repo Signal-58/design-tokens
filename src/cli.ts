@@ -10,6 +10,7 @@
  *   s58-tokens palette report                         # contrast, APCA floors, gamut fit
  *   s58-tokens figma plugin [--watch]                 # <plugin dir>/code.js, all modules
  *   s58-tokens figma script variables --dry-run [--collections=Primitives]   # use_figma
+ *   s58-tokens figma script colour-scopes --dry-run
  *   s58-tokens figma script text-styles --dry-run [--roles=heading,default]
  *
  * Figma's REST API can't write variables or styles on a Pro plan, so the code runs inside Figma: as
@@ -20,6 +21,7 @@ import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 
 import {
+  colourScopesSpecFor,
   DEFAULT_CONFIG_PATH,
   fileGuardFor,
   loadTokensConfig,
@@ -29,6 +31,7 @@ import {
 } from './config'
 import { checkTokens } from './check'
 import { initProject } from './init'
+import { buildColourScopesScript } from './figma/colour-scopes'
 import { pluginManifest } from './figma/manifest'
 import { buildFigmaPlugin } from './figma/plugin'
 import { buildTextStylesScript } from './figma/text-styles'
@@ -50,7 +53,8 @@ const USAGE = `Usage: s58-tokens [--config=<file>] <command>
                                          semantic values and APCA misses (for CI)
   palette report                         Contrast on white and black, APCA floors, gamut fit
   figma plugin [--watch]                 Build the project's Figma plugin (code.js)
-  figma script <variables|text-styles>   A use_figma script, on stdout
+  figma script <variables|colour-scopes|text-styles>
+                                         A use_figma script, on stdout
       [--dry-run] [--collections=a,b] [--roles=a,b]
 `
 
@@ -114,7 +118,11 @@ function buildPlugin(config: TokensConfig): void {
     )
   }
   const code = buildFigmaPlugin(
-    { variables: variablesSpecFor(config), textStyles: textStylesSpecFor(config) },
+    {
+      variables: variablesSpecFor(config),
+      colourScopes: colourScopesSpecFor(config),
+      textStyles: textStylesSpecFor(config),
+    },
     fileGuardFor(config),
   )
   const file = path.join(pluginDir(config), 'code.js')
@@ -161,6 +169,10 @@ function script(config: TokensConfig, args: string[]): void {
       spec.collections = spec.collections.filter((c) => names.includes(c.name))
     }
     code = buildVariablesScript(spec, dryRun, fileGuardFor(config))
+  } else if (module === 'colour-scopes') {
+    const spec = colourScopesSpecFor(config)
+    if (!spec) throw new Error('The config sets no colourScopes (figmaVariables.colourScopes).')
+    code = buildColourScopesScript(spec, dryRun, fileGuardFor(config))
   } else if (module === 'text-styles') {
     code = buildTextStylesScript(
       textStylesSpecFor(config, list(option(args, 'roles'))),

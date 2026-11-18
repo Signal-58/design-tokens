@@ -1,6 +1,7 @@
 /**
  * code.js for a project's tokens development plugin (`s58-tokens figma plugin`). On open it dry-runs
- * every module and shows one report; Apply runs them for real: variables first, then text styles.
+ * every module and shows one report; Apply runs them for real: variables first, then colour
+ * scopes, then text styles.
  * The plugin only knows the config as it was when this ran, so the UI shows the build time and the
  * package version. Before either, the file guard checks it's the project's Figma file.
  */
@@ -8,6 +9,7 @@ import fs from 'fs'
 import path from 'path'
 import { fileURLToPath } from 'url'
 
+import type { ColourScopesSpec } from './colour-scopes'
 import { inlineFigmaFunction, type FileGuard } from './inline'
 import type { TextStyleSpec } from './text-styles'
 import type { VariablesSpec } from './variables'
@@ -16,6 +18,7 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url))
 
 export interface PluginSpecs {
   variables?: VariablesSpec
+  colourScopes?: ColourScopesSpec
   textStyles?: TextStyleSpec
 }
 
@@ -37,6 +40,8 @@ export function buildFigmaPlugin(
     '',
     inlineFigmaFunction('apply-variables.figma.js'),
     '',
+    inlineFigmaFunction('apply-colour-scopes.figma.js'),
+    '',
     inlineFigmaFunction('apply-text-styles.figma.js'),
     '',
     `const SPECS = ${JSON.stringify(specs)}`,
@@ -52,6 +57,7 @@ export function buildFigmaPlugin(
     "    if (!file.ok) return figma.ui.postMessage({ type: 'blocked', message: file.message })",
     '    const reports = {}',
     '    if (SPECS.variables) reports.variables = await applyVariables(SPECS.variables, dryRun)',
+    '    if (SPECS.colourScopes) reports.colourScopes = await applyColourScopes(SPECS.colourScopes, dryRun)',
     '    // What the variables module creates, so the text styles dry run works on a blank file.',
     '    const planned = SPECS.variables',
     "      ? SPECS.variables.collections.flatMap((c) => c.variables.map((v) => c.name + '\\u0000' + v.name))",

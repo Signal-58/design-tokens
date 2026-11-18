@@ -317,6 +317,11 @@ export default defineFigmaVariables({
     customPairsGroup: 'Space size pairs/Custom pairs',
     namedPairs: {},
   },
+  // Optional: which pickers Figma's own colour variables appear in, such as the semantic colours.
+  // The plugin sets only their scopes. SHAPE_FILL covers vector layers, so imported SVGs.
+  // colourScopes: [
+  //   { collection: 'Colours', group: 'Typography', scopes: ['TEXT_FILL', 'SHAPE_FILL', 'STROKE_COLOR'] },
+  // ],
 })
 `
 }
