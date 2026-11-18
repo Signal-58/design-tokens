@@ -3,6 +3,9 @@
  * scales and anything that differs from the defaults. See the README, Palette.
  */
 
+import { checkColourScopes, type ColourScope } from '../figma/scopes'
+import { checkKeys, keysOf, type Exactly } from '../keys'
+
 /** A single colour in OKLCH. `alpha` is 0 to 1 and defaults to 1. */
 export interface Oklch {
   l: number
@@ -79,7 +82,7 @@ export interface PaletteFigma {
   /** Figma's documentColorProfile the variables are written for, such as `DISPLAY_P3`. */
   colorProfile: string
   /** The variables' scopes, such as fills and strokes. Empty hides them from every picker. */
-  scopes: readonly string[]
+  scopes: readonly ColourScope[]
 }
 
 /** Everything the palette generator needs. */
@@ -112,10 +115,27 @@ export const defaultPaletteRules: PaletteRules = {
   },
 }
 
-/** Fills it out with the defaults (15 steps, the default rules, Display P3) and checks the shape. */
-export function definePalette(
-  config: Partial<PaletteConfig> & Pick<PaletteConfig, 'scales'>,
-): PaletteConfig {
+const PALETTE_KEYS = keysOf<PaletteConfig>()(
+  'scales',
+  'rules',
+  'general',
+  'alphas',
+  'steps',
+  'gamut',
+  'figma',
+)
+const PALETTE_FIGMA_KEYS = keysOf<PaletteFigma>()('collection', 'group', 'colorProfile', 'scopes')
+
+/**
+ * Fills it out with the defaults (15 steps, the default rules, Display P3) and checks the shape,
+ * including that it has no unknown or misspelt keys.
+ */
+export function definePalette<
+  const T extends Partial<PaletteConfig> & Pick<PaletteConfig, 'scales'>,
+>(config: T & Exactly<T, PaletteConfig>): PaletteConfig {
+  checkKeys('palette', config, PALETTE_KEYS)
+  checkKeys('palette.figma', config.figma, PALETTE_FIGMA_KEYS)
+  if (config.figma) checkColourScopes('palette.figma.scopes', config.figma.scopes)
   const resolved: PaletteConfig = {
     rules: defaultPaletteRules,
     general: {},

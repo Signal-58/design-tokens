@@ -4,6 +4,8 @@
  * (defineTypography) holds the values.
  */
 
+import { checkKeys, keysOf, type Exactly } from '../keys'
+
 /**
  * A value bound to a variable in the size collection (`Fluid tokens`) instead of written as a
  * number. `{step}` in the name is replaced by the style's step, so `Font size/Step {step}` binds
@@ -154,9 +156,50 @@ export interface TypographyConfig {
   roles: Readonly<Record<string, TypographyRole>>
 }
 
-/** Checks the roles against the fonts and returns the config. */
-export function defineTypography<const T extends TypographyConfig>(config: T): T {
+const TYPOGRAPHY_KEYS = keysOf<TypographyConfig>()(
+  'figma',
+  'fonts',
+  'letterSpacingScale',
+  'lineHeightRules',
+  'roles',
+)
+const TYPOGRAPHY_FIGMA_KEYS = keysOf<TypographyFigma>()(
+  'fontCollection',
+  'fontFamilyGroup',
+  'fontWeightGroup',
+  'sizeCollection',
+  'fontSizeGroup',
+)
+const FONTS_KEYS = keysOf<TypographyFonts>()('families', 'weights')
+const ROLE_KEYS = keysOf<TypographyRole>()(
+  'figmaGroup',
+  'purpose',
+  'family',
+  'weight',
+  'steps',
+  'lineHeight',
+  'letterSpacing',
+  'paragraphSpacing',
+  'overrides',
+  'elements',
+)
+const STEP_RULE_KEYS = keysOf<StepRule>()('base', 'perStep', 'tightest', 'loosest', 'overrides')
+
+/**
+ * Checks the roles against the fonts, and that nothing has unknown or misspelt keys, and returns
+ * the config.
+ */
+export function defineTypography<const T extends TypographyConfig>(
+  config: T & Exactly<T, TypographyConfig>,
+): T {
+  checkKeys('typography', config, TYPOGRAPHY_KEYS)
+  checkKeys('typography.figma', config.figma, TYPOGRAPHY_FIGMA_KEYS)
+  checkKeys('typography.fonts', config.fonts, FONTS_KEYS)
+  for (const [kind, rule] of Object.entries(config.lineHeightRules ?? {})) {
+    checkKeys(`typography.lineHeightRules.${kind}`, rule, STEP_RULE_KEYS)
+  }
   for (const [key, role] of Object.entries(config.roles)) {
+    checkKeys(`typography.roles.${key}`, role, ROLE_KEYS)
     if (!(role.family in config.fonts.families)) {
       throw new Error(
         `Typography role ${key} uses the font family ${role.family}, which isn't in fonts.families`,

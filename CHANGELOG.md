@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+- **Misspelt keys are errors.** `definePalette`, `defineUtopia`, `defineTypography`, `defineFigmaVariables` and `defineTokens` reject keys their config doesn't have, all the way down, as type errors and when the config loads, naming the nearest key (`"colorScopes" isn't a setting in figmaVariables. Did you mean "colourScopes"?`). Before, a misspelt key was ignored without a word. `colourScopes` given as one rule instead of a list is an error too.
+- **Typed scopes.** `VARIABLE_SCOPES` and `VariableScope` list every Figma variable scope. The palette's `figma.scopes` takes colour scopes only, typed and checked like `colourScopes`.
+- **Breaking:** a config with a key the package doesn't know, or palette scopes that aren't colour scopes, no longer loads. Fix the key it names.
+
 ## 0.3.0
 
 - **Colour scopes.** `colourScopes` in the Figma variables config sets which pickers Figma's own colour variables, such as the semantic colours, appear in, by collection and group. The most specific group wins. A new plugin module and `s58-tokens figma script colour-scopes` set only scopes, never values or names, and report rules that match nothing. The starter config shows an example.
