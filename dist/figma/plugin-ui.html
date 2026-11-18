@@ -1,0 +1,198 @@
+<!-- The UI of the S58 Tokens Figma plugin. plugin.ts inlines it into code.js. -->
+<style>
+  body {
+    margin: 0;
+    padding: 12px 16px 64px;
+    font:
+      12px/1.5 Inter,
+      system-ui,
+      sans-serif;
+    color: var(--figma-color-text, #222);
+    background: var(--figma-color-bg, #fff);
+  }
+  h1 {
+    font-size: 13px;
+    margin: 0 0 8px;
+  }
+  h2 {
+    font-size: 12px;
+    margin: 12px 0 4px;
+  }
+  h2.module {
+    font-size: 13px;
+    margin-top: 20px;
+    padding-top: 12px;
+    border-top: 1px solid var(--figma-color-border, #e5e5e5);
+  }
+  ul {
+    margin: 0;
+    padding-left: 16px;
+  }
+  .muted {
+    color: var(--figma-color-text-secondary, #666);
+  }
+  .warn {
+    color: var(--figma-color-text-warning, #a15c00);
+  }
+  .error {
+    color: var(--figma-color-text-danger, #c00);
+  }
+  footer {
+    position: fixed;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    display: flex;
+    gap: 8px;
+    justify-content: flex-end;
+    padding: 12px 16px;
+    background: var(--figma-color-bg, #fff);
+    border-top: 1px solid var(--figma-color-border, #e5e5e5);
+  }
+  button {
+    font: inherit;
+    padding: 6px 12px;
+    border-radius: 6px;
+    border: 1px solid var(--figma-color-border, #ccc);
+    background: transparent;
+    color: inherit;
+    cursor: pointer;
+  }
+  button.primary {
+    background: var(--figma-color-bg-brand, #0d99ff);
+    border-color: transparent;
+    color: var(--figma-color-text-onbrand, #fff);
+  }
+  button:disabled {
+    opacity: 0.4;
+    cursor: default;
+  }
+</style>
+<div id="report"><p class="muted">Checking the file…</p></div>
+<footer>
+  <button id="close">Close</button>
+  <button id="apply" class="primary" disabled>Apply</button>
+</footer>
+<script>
+  const el = document.getElementById('report')
+  const apply = document.getElementById('apply')
+  const esc = (s) =>
+    String(s).replace(
+      /[&<>"]/g,
+      (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c],
+    )
+  const list = (title, items, cls) =>
+    items.length
+      ? `<h2${cls ? ` class="${cls}"` : ''}>${title}</h2><ul>${items.map((i) => `<li>${i}</li>`).join('')}</ul>`
+      : ''
+
+  const plural = (n, word) => `${n} ${word}${n === 1 ? '' : 's'}`
+
+  // Each module's section, and how many changes it has.
+  function variablesSection(r) {
+    const pending = r.created.length + r.updated.length
+    return {
+      pending,
+      html:
+        `<h2 class="module">Variables</h2>` +
+        list(
+          r.dryRun ? 'To create' : 'Created',
+          r.created.map((c) => `${esc(c.name)} = ${esc(c.value)}`),
+        ) +
+        list(
+          r.dryRun ? 'To update' : 'Updated',
+          r.updated.map((u) => `${esc(u.name)}: ${esc(u.from)} → ${esc(u.to)}`),
+        ) +
+        list('In Figma only (left alone)', r.figmaOnly.map(esc)) +
+        list('Warnings', r.warnings.map(esc), 'warn') +
+        `<p class="muted">${plural(r.unchanged, 'variable')} already match.</p>`,
+    }
+  }
+
+  function colourScopesSection(r) {
+    return {
+      pending: r.updated.length,
+      html:
+        `<h2 class="module">Colour scopes</h2>` +
+        list(
+          r.dryRun ? 'To update' : 'Updated',
+          r.updated.map((u) => `${esc(u.name)}: ${esc(u.from)} → ${esc(u.to)}`),
+        ) +
+        list('Warnings', r.warnings.map(esc), 'warn') +
+        `<p class="muted">${plural(r.unchanged, 'variable')} already scoped as the config says.</p>`,
+    }
+  }
+
+  function textStylesSection(r) {
+    const pending = r.variables.length + r.created.length + r.updated.length
+    return {
+      pending,
+      html:
+        `<h2 class="module">Text styles</h2>` +
+        list(
+          'Font variables',
+          r.variables.map((v) => `${esc(v.name)}: ${esc(v.from)} → ${esc(v.to)}`),
+        ) +
+        list(r.dryRun ? 'Styles to create' : 'Created', r.created.map(esc)) +
+        list(
+          r.dryRun ? 'Styles to update' : 'Updated',
+          r.updated.map(
+            (u) => `${esc(u.name)} <span class="muted">(${u.changes.map(esc).join(', ')})</span>`,
+          ),
+        ) +
+        list(
+          'Not in the config (left alone)',
+          r.orphans.map((o) => esc(o.name)),
+        ) +
+        list('Warnings', r.warnings.map(esc), 'warn') +
+        `<p class="muted">${plural(r.unchanged.length, 'style')} already match.</p>`,
+    }
+  }
+
+  function render(dryRun, reports, builtAt, version, checkedBy) {
+    const sections = [
+      reports.variables && variablesSection(reports.variables),
+      reports.colourScopes && colourScopesSection(reports.colourScopes),
+      reports.textStyles && textStylesSection(reports.textStyles),
+    ].filter(Boolean)
+    const pending = sections.reduce((n, s) => n + s.pending, 0)
+    const heading = dryRun
+      ? pending
+        ? `${plural(pending, 'change')} to apply`
+        : 'Figma already matches the plugin’s config'
+      : `Applied ${plural(pending, 'change')}`
+    el.innerHTML =
+      `<h1>${heading}</h1>` +
+      sections.map((s) => s.html).join('') +
+      `<p class="muted">Checked that this is the project’s file, by its ${checkedBy === 'name' ? 'name (Figma didn’t give its key)' : 'key'}.</p>` +
+      `<p class="muted">Built from the config at ${esc(new Date(builtAt).toLocaleString('en-GB'))} with @signal58/design-tokens ${esc(version)}. If you’ve changed the config since, run <code>pnpm app:figma:plugin</code> (or keep <code>:watch</code> running) and reopen the plugin.</p>`
+    apply.disabled = !dryRun || pending === 0
+  }
+
+  onmessage = (event) => {
+    const msg = event.data.pluginMessage
+    if (msg.type === 'report')
+      render(msg.dryRun, msg.reports, msg.builtAt, msg.version, msg.checkedBy)
+    if (msg.type === 'blocked') {
+      el.innerHTML = `<h1 class="error">Wrong file</h1><p>${esc(msg.message)}</p>`
+      apply.disabled = true
+    }
+    if (msg.type === 'error') {
+      // Unlike use_figma, a plugin keeps the changes made before an error. Rerunning is safe.
+      const what = applying
+        ? 'Stopped partway. Some changes may already be made; fix the problem and run the plugin again.'
+        : 'The check failed, so nothing was changed.'
+      el.innerHTML = `<h1 class="error">${what}</h1><p>${esc(msg.message)}</p>`
+      apply.disabled = true
+    }
+  }
+  let applying = false
+  apply.onclick = () => {
+    applying = true
+    apply.disabled = true
+    el.innerHTML = '<p class="muted">Applying…</p>'
+    parent.postMessage({ pluginMessage: { type: 'apply' } }, '*')
+  }
+  document.getElementById('close').onclick = () =>
+    parent.postMessage({ pluginMessage: { type: 'close' } }, '*')
+</script>
