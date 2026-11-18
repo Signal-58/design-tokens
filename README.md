@@ -143,7 +143,62 @@ The tests run the code that runs inside Figma against a stand-in for the parts o
 
 ## Releases
 
-1. Set `version` in `package.json` and add the version to `CHANGELOG.md`, on `main`.
-2. Run the **Release** workflow (Actions → Release → Run workflow) with that version.
+A release is a version bump on `main`, then the **Release** workflow, which builds and tags it. Projects install the tag, and `main` keeps only the source.
 
-The workflow runs CI, builds the package, and tags a commit that holds the build: `package.json` points at `dist/`, and the build scripts that would run at install are removed. `main` keeps only the source.
+### Releasing a version
+
+1. Start from an up-to-date `main`:
+
+   ```bash
+   git switch main && git pull
+   ```
+
+2. Set the version in `package.json`. `--no-git-tag-version` stops npm committing and tagging, because the workflow tags:
+
+   ```bash
+   npm version 0.4.0 --no-git-tag-version
+   ```
+
+3. In `CHANGELOG.md`, rename `## Unreleased` to `## 0.4.0`. The workflow uses that section as the GitHub release's notes.
+
+4. Check that `git diff` shows only those two lines, then commit and push:
+
+   ```bash
+   git commit -am "chore: release 0.4.0" && git push origin main
+   ```
+
+5. Run the workflow, on `main`, with the version **without the `v`** (`0.4.0`, not `v0.4.0`): **Actions → Release → Run workflow**, or:
+
+   ```bash
+   gh workflow run release.yml -f version=0.4.0
+   ```
+
+   `gh run watch` follows it, and `gh release view v0.4.0` shows the result.
+
+Use a minor version (`0.4.0`) for anything that changes what a project must do or adds a feature, and a patch (`0.3.1`) for fixes, while the package is `0.x`. Write each change into `## Unreleased` in the PR that makes it, so the changelog is ready when you release.
+
+### What the workflow does
+
+1. Runs CI: formatting, lint, types, tests and `check:package`.
+2. Checks the version. It stops, with nothing built or tagged, when:
+   - `package.json` says another version (`package.json says 0.3.0, not 0.4.0.`): do steps 2 to 4, then run it again;
+   - the tag exists already (`v0.4.0 is tagged already.`): pick the next version;
+   - `CHANGELOG.md` has no heading for it (`CHANGELOG.md has no ## 0.4.0.`).
+3. Builds `dist/` and commits it with a `package.json` whose `exports` point at it and whose build-at-install script is removed, on a release commit that only the tag points to, so installing the tag builds nothing. It pushes the `v0.4.0` tag.
+4. Creates the GitHub release with the changelog section as its notes.
+
+A failed run leaves nothing to clean up: fix the cause and run it again.
+
+### Upgrading a project
+
+Change the tag in the project's `package.json`, then install:
+
+```json
+"@signal58/design-tokens": "github:Signal-58/design-tokens#v0.4.0"
+```
+
+```bash
+pnpm install
+```
+
+Then run the project's token build and check. Rebuild the Figma plugin when the changelog mentions the plugin. A release can change the manifest the check expects, as v0.2.0 did, and `s58-tokens figma plugin` updates it.
