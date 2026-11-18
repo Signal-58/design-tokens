@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.3.0
 
 - **Colour scopes.** `colourScopes` in the Figma variables config sets which pickers Figma's own colour variables, such as the semantic colours, appear in, by collection and group. The most specific group wins. A new plugin module and `s58-tokens figma script colour-scopes` set only scopes, never values or names, and report rules that match nothing. The starter config shows an example.
 
