@@ -12,6 +12,7 @@ import type { UtopiaSpaceConfig, UtopiaTypeConfig } from 'utopia-core'
 import { oklchToRgb } from '../palette/colour'
 import type { PaletteColour } from '../palette/palette'
 import type { PaletteFigma } from '../palette/types'
+import { buildColourScopesSpec, type ColourScopeRule } from './colour-scopes'
 import { figmaScript, type FileGuard } from './inline'
 
 /** Which Figma variables code writes, and where they live. Variables are matched by name. */
@@ -44,6 +45,11 @@ export interface FigmaVariablesConfig {
     /** Named pairs for hand-written CSS variables: name → Utopia pair and code syntax. */
     namedPairs: Readonly<Record<string, { pair: string; codeSyntax: string }>>
   }
+  /**
+   * Optional: the scopes of colour variables Figma owns, such as the semantic colours, by
+   * collection and group. The plugin sets only their scopes (colour-scopes.ts).
+   */
+  colourScopes?: readonly ColourScopeRule[]
 }
 
 /** Checks the config and returns it. */
@@ -51,6 +57,7 @@ export function defineFigmaVariables<const T extends FigmaVariablesConfig>(confi
   if (config.letterSpacing.collection !== config.type.collection) {
     throw new Error('Letter spacing and font size primitives must share a collection')
   }
+  if (config.colourScopes) buildColourScopesSpec(config.colourScopes)
   return config
 }
 

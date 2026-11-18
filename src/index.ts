@@ -3,6 +3,7 @@
  * and runs the s58-tokens command; this is the API those configs and any project scripts use.
  */
 export {
+  colourScopesSpecFor,
   DEFAULT_CONFIG_PATH,
   defineTokens,
   fileGuardFor,
@@ -23,6 +24,7 @@ export * from './fluid/utopia'
 export * from './responsive/breakpoints'
 
 export { buildFigmaPlugin, packageVersion, type PluginSpecs } from './figma/plugin'
+export * from './figma/colour-scopes'
 export { fileKeyFrom, isFileKey } from './figma/file-key'
 export { figmaScript, inlineFigmaFunction, type FileGuard } from './figma/inline'
 export {

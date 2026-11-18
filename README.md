@@ -50,6 +50,7 @@ s58-tokens check                    # read only, for CI: exits 1 when something'
 s58-tokens palette report           # contrast on white and black, APCA floors, gamut fit
 s58-tokens figma plugin [--watch]   # <plugin dir>/code.js, all modules
 s58-tokens figma script variables --dry-run --collections=Primitives   # for the Figma MCP's use_figma
+s58-tokens figma script colour-scopes --dry-run
 s58-tokens figma script text-styles --dry-run --roles=heading,default
 ```
 
@@ -83,6 +84,27 @@ Figma's REST API can't write variables or styles on a Pro plan, so the code runs
 `s58-tokens figma plugin` writes `design-tokens/figma-plugin/code.js` (keep it out of Git) and, when it's missing, `manifest.json` with the plugin's name and id from the config (commit it). Import the manifest once in Figma desktop (**Plugins → Development → Import plugin from manifest…**), then rebuild and rerun as the configs change. Give each project its own plugin id, so a designer can import several projects' plugins side by side.
 
 The Figma-side code (`src/figma/*.figma.js` and `plugin-ui.html`) is the same for every project; only the configs, inlined as JSON, differ. The plugin's report shows the package version it was built with, next to the build time.
+
+### Colour scopes
+
+A variable's scopes decide which pickers it appears in. The plugin sets them for the variables it writes: the colour primitives from `figma.scopes` in the palette config, and the fluid tokens from the Figma variables config. Semantic colours belong to Figma, but a project can still set where they appear, with `colourScopes` in the Figma variables config:
+
+```ts
+colourScopes: [
+  // Text colours, also for vector fills (imported SVG logos) and strokes.
+  { collection: 'Colours', group: 'Typography', scopes: ['TEXT_FILL', 'SHAPE_FILL', 'STROKE_COLOR'] },
+  // One variable that differs from its group: the most specific group wins.
+  { collection: 'Colours', group: 'Typography/link-bg', scopes: ['FRAME_FILL', 'SHAPE_FILL'] },
+],
+```
+
+- A rule covers every colour variable under `group` in `collection`, or the one variable whose full name is `group`.
+- The scopes replace what's in Figma. Change them in the config, not in Figma, or the next Apply puts the config's back.
+- Only scopes change. The module never creates, renames or deletes a variable, or changes a value or alias.
+- A rule that matches nothing is a warning in the report, so a renamed group shows up.
+- Colour scopes are `ALL_SCOPES`, `ALL_FILLS`, `FRAME_FILL`, `SHAPE_FILL`, `TEXT_FILL`, `STROKE_COLOR` and `EFFECT_COLOR`. `SHAPE_FILL` covers vector layers. `ALL_FILLS` already includes the three fills, and an empty list hides the variables from every picker.
+
+It runs in the plugin after the variables module, and as `s58-tokens figma script colour-scopes` for `use_figma`.
 
 ### The file guard
 
