@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.4.0
 
 - **Misspelt keys are errors.** `definePalette`, `defineUtopia`, `defineTypography`, `defineFigmaVariables` and `defineTokens` reject keys their config doesn't have, all the way down, as type errors and when the config loads, naming the nearest key (`"colorScopes" isn't a setting in figmaVariables. Did you mean "colourScopes"?`). Before, a misspelt key was ignored without a word. `colourScopes` given as one rule instead of a list is an error too.
 - **Typed scopes.** `VARIABLE_SCOPES` and `VariableScope` list every Figma variable scope. The palette's `figma.scopes` takes colour scopes only, typed and checked like `colourScopes`.
