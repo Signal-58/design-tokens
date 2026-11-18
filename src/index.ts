@@ -25,6 +25,8 @@ export * from './responsive/breakpoints'
 
 export { buildFigmaPlugin, packageVersion, type PluginSpecs } from './figma/plugin'
 export * from './figma/colour-scopes'
+export { VARIABLE_SCOPES, type VariableScope } from './figma/scopes'
+export { checkKeys, type Exactly } from './keys'
 export { fileKeyFrom, isFileKey } from './figma/file-key'
 export { figmaScript, inlineFigmaFunction, type FileGuard } from './figma/inline'
 export {

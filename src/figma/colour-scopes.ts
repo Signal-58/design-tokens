@@ -7,20 +7,11 @@
  * is `group`). When rules overlap, the most specific group wins, so one variable can differ from
  * its group.
  */
+import { checkKeys, keysOf } from '../keys'
 import { figmaScript, type FileGuard } from './inline'
+import { checkColourScopes, type ColourScope } from './scopes'
 
-/** The scopes Figma accepts on a colour variable. */
-export const COLOUR_SCOPES = [
-  'ALL_SCOPES',
-  'ALL_FILLS',
-  'FRAME_FILL',
-  'SHAPE_FILL',
-  'TEXT_FILL',
-  'STROKE_COLOR',
-  'EFFECT_COLOR',
-] as const
-
-export type ColourScope = (typeof COLOUR_SCOPES)[number]
+export { COLOUR_SCOPES, type ColourScope } from './scopes'
 
 export interface ColourScopeRule {
   /** The variable collection, such as `Colours`. */
@@ -34,6 +25,8 @@ export interface ColourScopeRule {
   scopes: readonly ColourScope[]
 }
 
+const RULE_KEYS = keysOf<ColourScopeRule>()('collection', 'group', 'scopes')
+
 export interface ColourScopesSpec {
   rules: ColourScopeRule[]
 }
@@ -41,28 +34,15 @@ export interface ColourScopesSpec {
 /** Checks the rules: known scopes, combinations Figma accepts, and no group given twice. */
 export function buildColourScopesSpec(rules: readonly ColourScopeRule[]): ColourScopesSpec {
   const seen = new Set<string>()
-  for (const rule of rules) {
+  rules.forEach((rule, i) => {
+    checkKeys(`colourScopes[${i}]`, rule, RULE_KEYS)
     const where = `colourScopes ${rule.collection} / ${rule.group}`
     if (!rule.collection || !rule.group) throw new Error(`${where}: needs a collection and a group`)
     const id = `${rule.collection}\u0000${rule.group}`
     if (seen.has(id)) throw new Error(`${where} is given twice`)
     seen.add(id)
-    const unknown = rule.scopes.filter((s) => !(COLOUR_SCOPES as readonly string[]).includes(s))
-    if (unknown.length) {
-      throw new Error(
-        `${where}: ${unknown.join(', ')} isn't a colour scope (${COLOUR_SCOPES.join(', ')})`,
-      )
-    }
-    if (rule.scopes.includes('ALL_SCOPES') && rule.scopes.length > 1) {
-      throw new Error(`${where}: ALL_SCOPES already includes every other scope`)
-    }
-    const fills = rule.scopes.filter(
-      (s) => s === 'FRAME_FILL' || s === 'SHAPE_FILL' || s === 'TEXT_FILL',
-    )
-    if (rule.scopes.includes('ALL_FILLS') && fills.length) {
-      throw new Error(`${where}: ALL_FILLS already includes ${fills.join(', ')}`)
-    }
-  }
+    checkColourScopes(where, rule.scopes)
+  })
   return { rules: rules.map((r) => ({ ...r, scopes: [...r.scopes] })) }
 }
 

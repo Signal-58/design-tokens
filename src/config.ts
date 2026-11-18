@@ -9,6 +9,7 @@ import { createJiti } from 'jiti'
 import { buildColourScopesSpec, type ColourScopesSpec } from './figma/colour-scopes'
 import { fileKeyFrom, isFileKey } from './figma/file-key'
 import type { FileGuard } from './figma/inline'
+import { checkKeys, keysOf, type Exactly } from './keys'
 import { buildTextStyleSpec, type TextStyleSpec } from './figma/text-styles'
 import {
   buildVariablesSpec,
@@ -69,8 +70,37 @@ export interface TokensConfig {
   }
 }
 
-/** Checks the config and returns it. The CLI reads it as the default export of tokens.config.ts. */
-export function defineTokens<const T extends TokensConfig>(config: T): T {
+const TOKENS_KEYS = keysOf<TokensConfig>()(
+  'name',
+  'figma',
+  'palette',
+  'utopia',
+  'typography',
+  'figmaVariables',
+  'breakpoints',
+  'fluidTool',
+  'generated',
+  'build',
+  'format',
+  'check',
+)
+const TOKENS_FIGMA_KEYS = keysOf<TokensConfig['figma']>()('fileKey', 'fileName', 'plugin')
+const PLUGIN_KEYS = keysOf<TokensConfig['figma']['plugin']>()('name', 'id', 'dir')
+const CHECK_KEYS = keysOf<NonNullable<TokensConfig['check']>>()('allowApcaMisses')
+const FORMAT_KEYS = keysOf<NonNullable<TokensConfig['format']>>()('command')
+
+/**
+ * Checks the config, including that it has no unknown or misspelt keys, and returns it. The CLI
+ * reads it as the default export of tokens.config.ts.
+ */
+export function defineTokens<const T extends TokensConfig>(
+  config: T & Exactly<T, TokensConfig>,
+): T {
+  checkKeys('the token config', config, TOKENS_KEYS)
+  checkKeys('figma', config.figma, TOKENS_FIGMA_KEYS)
+  checkKeys('figma.plugin', config.figma.plugin, PLUGIN_KEYS)
+  checkKeys('check', config.check, CHECK_KEYS)
+  checkKeys('format', config.format, FORMAT_KEYS)
   if (!/^[a-z0-9-]+$/.test(config.figma.plugin.id)) {
     throw new Error(
       `figma.plugin.id must be lowercase letters, digits and hyphens: ${config.figma.plugin.id}`,

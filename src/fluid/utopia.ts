@@ -4,6 +4,8 @@
  */
 import type { UtopiaSpaceConfig, UtopiaTypeConfig } from 'utopia-core'
 
+import { checkKeys, keysOf, type Exactly } from '../keys'
+
 export type { UtopiaSpaceConfig, UtopiaTypeConfig }
 
 /** The viewport range the scales are fluid across, in px. */
@@ -20,8 +22,18 @@ export interface UtopiaConfig {
   space: UtopiaSpaceConfig
 }
 
-/** Checks that both scales use the viewport, and returns the config. */
-export function defineUtopia<const T extends UtopiaConfig>(config: T): T {
+const UTOPIA_KEYS = keysOf<UtopiaConfig>()('viewport', 'type', 'space')
+const VIEWPORT_KEYS = keysOf<UtopiaViewport>()('minWidth', 'maxWidth', 'relativeTo')
+
+/**
+ * Checks that both scales use the viewport, and that it has no unknown or misspelt keys, and
+ * returns the config.
+ */
+export function defineUtopia<const T extends UtopiaConfig>(
+  config: T & Exactly<T, UtopiaConfig>,
+): T {
+  checkKeys('utopia', config, UTOPIA_KEYS)
+  checkKeys('utopia.viewport', config.viewport, VIEWPORT_KEYS)
   for (const [name, scale] of [
     ['type', config.type],
     ['space', config.space],

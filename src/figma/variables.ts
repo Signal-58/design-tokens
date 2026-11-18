@@ -13,7 +13,9 @@ import { oklchToRgb } from '../palette/colour'
 import type { PaletteColour } from '../palette/palette'
 import type { PaletteFigma } from '../palette/types'
 import { buildColourScopesSpec, type ColourScopeRule } from './colour-scopes'
+import { checkKeys, keysOf, type Exactly } from '../keys'
 import { figmaScript, type FileGuard } from './inline'
+import type { VariableScope } from './scopes'
 
 /** Which Figma variables code writes, and where they live. Variables are matched by name. */
 export interface FigmaVariablesConfig {
@@ -53,7 +55,45 @@ export interface FigmaVariablesConfig {
 }
 
 /** Checks the config and returns it. */
-export function defineFigmaVariables<const T extends FigmaVariablesConfig>(config: T): T {
+const FIGMA_VARIABLES_KEYS = keysOf<FigmaVariablesConfig>()(
+  'type',
+  'letterSpacing',
+  'space',
+  'fluid',
+  'colourScopes',
+)
+const GROUPS_KEYS = keysOf<FigmaVariablesConfig['type']>()('collection', 'minGroup', 'maxGroup')
+const SPACE_KEYS = keysOf<FigmaVariablesConfig['space']>()(
+  'collection',
+  'minGroup',
+  'maxGroup',
+  'fixed',
+)
+const FLUID_KEYS = keysOf<FigmaVariablesConfig['fluid']>()(
+  'collection',
+  'modes',
+  'fontSizeGroup',
+  'letterSpacingGroup',
+  'spaceGroup',
+  'pairsGroup',
+  'customPairsGroup',
+  'namedPairs',
+)
+
+/** Checks the config, including that it has no unknown or misspelt keys, and returns it. */
+export function defineFigmaVariables<const T extends FigmaVariablesConfig>(
+  config: T & Exactly<T, FigmaVariablesConfig>,
+): T {
+  checkKeys('figmaVariables', config, FIGMA_VARIABLES_KEYS)
+  checkKeys('figmaVariables.type', config.type, GROUPS_KEYS)
+  checkKeys('figmaVariables.letterSpacing', config.letterSpacing, GROUPS_KEYS)
+  checkKeys('figmaVariables.space', config.space, SPACE_KEYS)
+  checkKeys('figmaVariables.fluid', config.fluid, FLUID_KEYS)
+  if (config.colourScopes !== undefined && !Array.isArray(config.colourScopes)) {
+    throw new Error(
+      'figmaVariables.colourScopes must be a list of rules: [{ collection, group, scopes }]',
+    )
+  }
   if (config.letterSpacing.collection !== config.type.collection) {
     throw new Error('Letter spacing and font size primitives must share a collection')
   }
@@ -79,7 +119,7 @@ interface EntryMeta {
   name: string
   type: VariableType
   /** Written when given; a new variable without them gets none, as primitives have. */
-  scopes?: string[]
+  scopes?: VariableScope[]
   /** The WEB code syntax, the CSS variable without `--`. */
   codeSyntax?: string
   description?: string
@@ -268,7 +308,7 @@ function fluidTokens(
     return {
       name,
       type: 'FLOAT' as const,
-      scopes: ['GAP'],
+      scopes: ['GAP'] satisfies VariableScope[],
       codeSyntax: codeSyntax ?? `space-${spaceCss(a)}-${spaceCss(b)}`,
       description: describe(from.minSize, to.maxSize),
       modes: {
@@ -288,7 +328,7 @@ function fluidTokens(
       ...typeSteps.map((s) => ({
         name: `${f.fontSizeGroup}/Step ${s.step}`,
         type: 'FLOAT' as const,
-        scopes: ['FONT_SIZE'],
+        scopes: ['FONT_SIZE'] satisfies VariableScope[],
         codeSyntax: `font-size-${s.step}`,
         description: describe(s.minFontSize, s.maxFontSize),
         modes: minMax(
@@ -300,7 +340,7 @@ function fluidTokens(
       ...typeSteps.map((s) => ({
         name: `${f.letterSpacingGroup}/Step ${s.step}`,
         type: 'FLOAT' as const,
-        scopes: ['LETTER_SPACING'],
+        scopes: ['LETTER_SPACING'] satisfies VariableScope[],
         codeSyntax: `letter-spacing-${s.step}`,
         description: `${describe(
           letterSpacingPx(letterSpacing[s.step], s.minFontSize),
@@ -315,7 +355,7 @@ function fluidTokens(
       ...[...sizes.values()].map((s) => ({
         name: spaceName(s.label),
         type: 'FLOAT' as const,
-        scopes: ['GAP'],
+        scopes: ['GAP'] satisfies VariableScope[],
         codeSyntax: `space-${spaceCss(s.label)}`,
         description: describe(s.minSize, s.maxSize),
         modes: minMax(

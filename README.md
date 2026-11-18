@@ -39,6 +39,8 @@ A project keeps its configs in `design-tokens/`, each wrapped in a helper that c
 
 The command reads `design-tokens/tokens.config.ts`'s default export. The configs stay TypeScript: the command loads them with [jiti](https://github.com/unjs/jiti), so nothing has to be built first.
 
+**Misspelt keys are errors, not ignored.** Each helper takes only the keys its config has, all the way down, and Figma scopes are typed too, so the editor and `tsc` flag `colorScopes` for `colourScopes`, or `SHAPE_FIL` for `SHAPE_FILL`. jiti doesn't check types, so the helpers also check when the config loads, and the command stops with the nearest key: `"colorScopes" isn't a setting in figmaVariables. Did you mean "colourScopes"?`
+
 ## The command
 
 Run it from the project root, usually through the project's `package.json` scripts:
