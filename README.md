@@ -56,6 +56,9 @@ s58-tokens figma script variables --dry-run --collections=Primitives   # for the
 s58-tokens figma script colour-scopes --dry-run
 s58-tokens figma script text-styles --dry-run --roles=heading,default
 s58-tokens figma script export --collections=Colours                  # read only: the semantics Figma owns
+s58-tokens figma script check                                          # read only: what Export would change
+s58-tokens figma diff check-result.json                                # what check returned, as a report
+s58-tokens figma pull check-result.json                                # applies it to the pulled file
 ```
 
 `--config=<file>` reads another config.
@@ -90,6 +93,15 @@ semantics: {
 ```
 
 A reference to a collection the build doesn't read stops the build, naming the token. Figma's own exports, one file per mode (`semantics: { colours: { light: '…/light.tokens.json' }, fluid: { file, groups } }`), still work.
+
+### Has Figma changed since the last pull?
+
+Both the plugin and `use_figma` can compare Figma with the committed pulled file, reading only:
+
+- **The plugin's dry run** has a **Semantics** section: what Figma has added, changed, removed or reordered since the file the plugin was built with ("Figma has 3 changes the committed file doesn't. Export to pull them"). Rebuild the plugin after pulling (`:watch` does), or it compares with the old file.
+- **Through the Figma MCP:** `s58-tokens figma script check` prints the code for `use_figma`. Save what it returns as JSON, then `s58-tokens figma diff <file>` lists the changes, and `s58-tokens figma pull <file>` writes them into the pulled file, exactly as Export would. Run `s58-tokens build` after.
+
+The check doesn't carry the file into Figma. It carries a fingerprint, a short hash per token and per collection's order, and Figma returns only what differs, so it fits `use_figma`'s limits (50,000 characters in, 48,000 bytes out) where the export doesn't. If Figma has more changes than fit, check one collection at a time (`--collections=Colours`) or use the plugin's Export. `figma pull` refuses a result made from another version of the committed file.
 
 ## Every semantic in code
 

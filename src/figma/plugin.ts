@@ -2,6 +2,8 @@
  * code.js for a project's tokens development plugin (`s58-tokens figma plugin`). On open it dry-runs
  * every module and shows one report; Apply runs them for real: variables first, then colour
  * scopes, then code syntax, then text styles. Export reads the semantics Figma owns into the file the build reads.
+ * Both also compare those semantics with the committed file (diff-semantics.figma.js), so the
+ * report says when Figma has changes to pull.
  * The plugin only knows the config as it was when this ran, so the UI shows the build time and the
  * package version. Before either, the file guard checks it's the project's Figma file.
  */
@@ -11,6 +13,7 @@ import { fileURLToPath } from 'url'
 
 import type { CodeSyntaxSpec } from './code-syntax'
 import type { ColourScopesSpec } from './colour-scopes'
+import type { DiffSpec } from './diff'
 import type { ExportSpec } from './semantics'
 import { inlineFigmaFunction, type FileGuard } from './inline'
 import type { TextStyleSpec } from './text-styles'
@@ -26,6 +29,8 @@ export interface PluginSpecs {
   textStyles?: TextStyleSpec
   /** The Export button: what to leave out (the variables the plugin writes). */
   export?: ExportSpec
+  /** The dry run's comparison with the committed pulled file, when there is one. */
+  diff?: DiffSpec
 }
 
 /** This package's version, from its package.json (two folders up from src/figma and dist/figma). */
@@ -54,6 +59,8 @@ export function buildFigmaPlugin(
     '',
     inlineFigmaFunction('export-semantics.figma.js'),
     '',
+    inlineFigmaFunction('diff-semantics.figma.js'),
+    '',
     `const SPECS = ${JSON.stringify(specs)}`,
     `const GUARD = ${JSON.stringify(guard)}`,
     `const BUILT_AT = ${JSON.stringify(builtAt.toISOString())}`,
@@ -74,6 +81,8 @@ export function buildFigmaPlugin(
     "      ? SPECS.variables.collections.flatMap((c) => c.variables.map((v) => c.name + '\\u0000' + v.name))",
     '      : []',
     '    if (SPECS.textStyles) reports.textStyles = await applyTextStyles(SPECS.textStyles, dryRun, planned)',
+    "    // What Export would change in the committed file. Reads only; Apply doesn't pull.",
+    '    if (SPECS.diff) reports.semantics = await diffSemantics(SPECS.diff)',
     "    figma.ui.postMessage({ type: 'report', dryRun, reports, builtAt: BUILT_AT, version: VERSION, checkedBy: file.by })",
     '  } catch (error) {',
     "    figma.ui.postMessage({ type: 'error', message: String((error && error.message) || error) })",

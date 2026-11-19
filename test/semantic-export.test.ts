@@ -389,7 +389,7 @@ describe('the pulled file in the build', () => {
 describe('the plugin', () => {
   it('has the Export button’s code, with what to leave out', () => {
     const code = buildFigmaPlugin({ export: buildExportSpec(owned) }, FILE, new Date(0))
-    expect(code).toContain('async function exportSemantics(spec)')
+    expect(code).toContain('async function exportSemantics(spec, isOwned)')
     expect(code).toContain("if (msg.type === 'export') return exportFile()")
     expect(code).toContain('Primitives\\u0000primitive/colors/amber/6')
   })

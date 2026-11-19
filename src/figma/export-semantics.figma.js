@@ -17,11 +17,18 @@
  *
  * @param {{ owned: string[], collections?: string[] }} spec `owned` holds `<collection>\u0000<name>`
  *   for each code-owned variable; `collections`, when set, limits the export to those collections.
+ * @param {(collection: string, name: string) => boolean} [isOwned] Decides what's code-owned in
+ *   place of `owned`: the check (diff-semantics.figma.js) passes hashes, which take less room.
  * @returns {Promise<{ tokens: object, report: { collections: { name: string, variables: number }[], codeOwned: number, warnings: string[] } }>}
  */
-export async function exportSemantics(spec) {
+export async function exportSemantics(spec, isOwned) {
   const report = { collections: [], codeOwned: 0, warnings: [] }
-  const owned = new Set(spec.owned)
+  const owned = new Set(spec.owned ?? [])
+  // A use_figma script passes its dry-run flag second, so only a function counts.
+  const isCodeOwned =
+    typeof isOwned === 'function'
+      ? isOwned
+      : (collection, name) => owned.has(`${collection}\u0000${name}`)
   const only = spec.collections ? new Set(spec.collections) : null
   const collections = await figma.variables.getLocalVariableCollectionsAsync()
   const variables = await figma.variables.getLocalVariablesAsync()
@@ -79,7 +86,7 @@ export async function exportSemantics(spec) {
     for (const id of collection.variableIds) {
       const variable = variableById.get(id)
       if (!variable) continue
-      if (owned.has(`${collection.name}\u0000${variable.name}`)) {
+      if (isCodeOwned(collection.name, variable.name)) {
         report.codeOwned++
         continue
       }
