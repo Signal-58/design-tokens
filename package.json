@@ -1,6 +1,6 @@
 {
   "name": "@signal58/design-tokens",
-  "version": "0.4.0",
+  "version": "0.5.0",
   "description": "Design tokens from code: OKLCH palettes on a contrast ladder, fluid type and space, type rules, and a Figma plugin that writes them into your file.",
   "license": "MIT",
   "repository": {

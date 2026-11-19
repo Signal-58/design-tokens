@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.5.0
 
 - **Export.** The plugin's new **Export** button pulls the semantics Figma owns into one file, `semantics.tokens.json`, with every collection and mode, aliases as references by name, code syntax, scopes and descriptions, and raw colours in the file's own colour profile. It leaves out what the plugin writes from code. `s58-tokens figma script export [--collections=]` gives the same code for `use_figma`.
 - **The build reads the pulled file.** `build.semantics.file` names it, with the colour collection and its modes (`colours: { collection, modes }`) and the fluid collection, mode and groups (`fluid: { collection, mode, groups }`). The trees are the same as from Figma's own exports, so the built files don't change. Figma's own exports still work.
