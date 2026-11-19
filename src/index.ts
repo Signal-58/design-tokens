@@ -22,6 +22,13 @@ export { paletteReport } from './palette/report'
 
 export * from './type/rules'
 export * from './fluid/utopia'
+export {
+  defineLayout,
+  layoutVariables,
+  sizeCssName,
+  type LayoutConfig,
+  type LayoutSizes,
+} from './layout/layout'
 export * from './responsive/breakpoints'
 
 export { buildFigmaPlugin, packageVersion, type PluginSpecs } from './figma/plugin'

@@ -14,11 +14,13 @@ import { checkKeys, keysOf, type Exactly } from './keys'
 import { buildTextStyleSpec, type TextStyleSpec } from './figma/text-styles'
 import {
   buildVariablesSpec,
+  mergeCollections,
   paletteVariables,
   type FigmaVariablesConfig,
   type VariablesSpec,
 } from './figma/variables'
 import type { UtopiaConfig } from './fluid/utopia'
+import { layoutVariables, type LayoutConfig } from './layout/layout'
 import { buildPalette } from './palette/palette'
 import type { PaletteConfig } from './palette/types'
 import type { BuildConfig } from './style-dictionary'
@@ -51,6 +53,11 @@ export interface TokensConfig {
   utopia: UtopiaConfig
   typography: TypographyConfig
   figmaVariables: FigmaVariablesConfig
+  /**
+   * Optional: the primitives Figma's semantics alias that aren't Utopia steps or colours: the
+   * viewport, border widths, line heights and fixed sizes such as hero heights (`defineLayout`).
+   */
+  layout?: LayoutConfig
   /** Optional: breakpoint SCSS and CSS custom properties. */
   breakpoints?: BreakpointsConfig
   /** Where `_fluid.scss` goes. Without it, no helper is written. */
@@ -78,6 +85,7 @@ const TOKENS_KEYS = keysOf<TokensConfig>()(
   'utopia',
   'typography',
   'figmaVariables',
+  'layout',
   'breakpoints',
   'fluidTool',
   'generated',
@@ -147,10 +155,13 @@ export function fileGuardFor(config: TokensConfig): FileGuard {
   return { project: config.name, fileKey, ...(fileName ? { fileName } : {}) }
 }
 
-/** The variables module's spec for a project: Utopia, letter spacing and colour primitives. */
+/**
+ * The variables module's spec for a project: Utopia, letter spacing and colour primitives, plus the
+ * layout config's, each in the collection it names.
+ */
 export function variablesSpecFor(config: TokensConfig): VariablesSpec {
   const { utopia, figmaVariables, typography, palette } = config
-  return buildVariablesSpec(
+  const spec = buildVariablesSpec(
     utopia.type,
     utopia.space,
     figmaVariables,
@@ -158,6 +169,10 @@ export function variablesSpecFor(config: TokensConfig): VariablesSpec {
     paletteVariables(buildPalette(palette), palette.figma),
     palette.figma.colorProfile,
   )
+  const layout = layoutVariables(config)
+  return layout.length
+    ? { ...spec, collections: mergeCollections([...spec.collections, ...layout]) }
+    : spec
 }
 
 /** The colour scopes module's spec for a project, or undefined when it sets none. */

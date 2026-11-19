@@ -8,10 +8,10 @@
  *   marks it `required` (then the run stops before writing anything); missing modes are added;
  * - a variable the spec names but Figma lacks is created, with the spec's scopes (none if it gives
  *   none, as primitives have);
- * - values are written per mode: `value` or `aliasOf` go in the default mode, `modes` names a value
- *   for each mode. A value is a plain value or `{ aliasOf, collection? }`, an alias to a variable in
- *   that collection (default: the same one). Plain values are written before aliases, and earlier
- *   collections before later ones, so an alias can point at a variable created in this run;
+ * - values are written per mode: `value` or `aliasOf` (with `aliasCollection`) go in the default
+ *   mode, `modes` names a value for each mode. A value is a plain value or `{ aliasOf, collection? }`,
+ *   an alias to a variable in that collection (default: the same one). Every collection's plain
+ *   values are written before any alias, so an alias can point at a variable created in this run;
  * - a variable whose value differs is updated in place, so aliases and bindings to it stay;
  * - scopes, code syntax (WEB) and description are written when the spec gives them;
  * - a variable that is an alias where the spec has a plain value, or of another type, is left
@@ -68,6 +68,14 @@ export async function applyVariables(spec, dryRun) {
     if (owner) registry.set(key(owner, v.name), v)
   }
 
+  // Each entry's values as [mode name or null for the default mode, value].
+  const valuesOf = (e) =>
+    e.modes
+      ? Object.entries(e.modes)
+      : [[null, 'aliasOf' in e ? { aliasOf: e.aliasOf, collection: e.aliasCollection } : e.value]]
+  const hasAlias = (e) => valuesOf(e).some(([, v]) => v && typeof v === 'object' && 'aliasOf' in v)
+
+  const prepared = []
   for (const want of spec.collections) {
     let collection = collections.find((c) => c.name === want.name)
     const modeNames = want.modes ?? []
@@ -97,127 +105,136 @@ export async function applyVariables(spec, dryRun) {
     const defaultMode = collection ? collection.defaultModeId : null
     const label = (name) => `${want.name}: ${name}`
 
-    const entries = want.variables.filter((e) => profileOk || e.type !== 'COLOR')
-    // Each entry's values as [mode name or null for the default mode, value].
-    const valuesOf = (e) =>
-      e.modes
-        ? Object.entries(e.modes)
-        : [[null, 'aliasOf' in e ? { aliasOf: e.aliasOf } : e.value]]
-    const hasAlias = (e) =>
-      valuesOf(e).some(([, v]) => v && typeof v === 'object' && 'aliasOf' in v)
-    const ordered = [...entries.filter((e) => !hasAlias(e)), ...entries.filter(hasAlias)]
+    prepared.push({ want, collection, modeIds, defaultMode, label })
+  }
 
-    for (const entry of ordered) {
-      const existing = registry.get(key(want.name, entry.name))
-      if (existing && existing.resolvedType !== entry.type) {
-        report.warnings.push(
-          `${label(entry.name)} is ${existing.resolvedType}, not ${entry.type}; left unchanged.`,
-        )
-        continue
-      }
+  // Plain values in every collection first, then aliases, so an alias can point at a variable
+  // created in this run, in any collection.
+  for (const aliases of [false, true]) {
+    for (const { want, collection, modeIds, defaultMode, label } of prepared) {
+      const ordered = want.variables.filter(
+        (e) => (profileOk || e.type !== 'COLOR') && hasAlias(e) === aliases,
+      )
 
-      // Work out each mode's change before touching anything.
-      const writes = []
-      let skip = false
-      for (const [modeName, value] of valuesOf(entry)) {
-        const modeId = modeName === null ? defaultMode : modeIds.get(modeName)
-        const where = modeName === null ? entry.name : `${entry.name} (${modeName})`
-        const current = existing && modeId ? existing.valuesByMode[modeId] : undefined
-        if (value && typeof value === 'object' && 'aliasOf' in value) {
-          const targetCollection = value.collection ?? want.name
-          const target = registry.get(key(targetCollection, value.aliasOf))
-          const targetLabel =
-            targetCollection === want.name ? value.aliasOf : `${targetCollection}: ${value.aliasOf}`
-          if (!target && !dryRun) {
-            report.warnings.push(`${label(where)} points at ${targetLabel}, which doesn't exist.`)
-            skip = true
-            break
+      for (const entry of ordered) {
+        const existing = registry.get(key(want.name, entry.name))
+        if (existing && existing.resolvedType !== entry.type) {
+          report.warnings.push(
+            `${label(entry.name)} is ${existing.resolvedType}, not ${entry.type}; left unchanged.`,
+          )
+          continue
+        }
+
+        // Work out each mode's change before touching anything.
+        const writes = []
+        let skip = false
+        for (const [modeName, value] of valuesOf(entry)) {
+          const modeId = modeName === null ? defaultMode : modeIds.get(modeName)
+          const where = modeName === null ? entry.name : `${entry.name} (${modeName})`
+          const current = existing && modeId ? existing.valuesByMode[modeId] : undefined
+          if (value && typeof value === 'object' && 'aliasOf' in value) {
+            const targetCollection = value.collection ?? want.name
+            const target = registry.get(key(targetCollection, value.aliasOf))
+            const targetLabel =
+              targetCollection === want.name
+                ? value.aliasOf
+                : `${targetCollection}: ${value.aliasOf}`
+            if (!target && !dryRun) {
+              report.warnings.push(`${label(where)} points at ${targetLabel}, which doesn't exist.`)
+              skip = true
+              break
+            }
+            if (isAlias(current) && target && current.id === target.id) continue
+            writes.push({
+              modeName,
+              where,
+              from: isAlias(current) ? 'another alias' : show(current),
+              to: `alias to ${targetLabel}`,
+              write: () => figma.variables.createVariableAlias(target),
+            })
+            continue
           }
-          if (isAlias(current) && target && current.id === target.id) continue
-          writes.push({
-            modeName,
-            where,
-            from: isAlias(current) ? 'another alias' : show(current),
-            to: `alias to ${targetLabel}`,
-            write: () => figma.variables.createVariableAlias(target),
+          if (isAlias(current)) {
+            report.warnings.push(`${label(where)} is an alias; left unchanged.`)
+            continue
+          }
+          if (existing && same(current, value)) continue
+          writes.push({ modeName, where, from: show(current), to: show(value), write: () => value })
+        }
+        if (skip) continue
+
+        const meta = []
+        if (existing) {
+          if (entry.scopes && !sameScopes(existing.scopes, entry.scopes)) {
+            meta.push({
+              what: 'scopes',
+              from: existing.scopes.join(', ') || 'none',
+              to: entry.scopes.join(', ') || 'none',
+              write: (v) => (v.scopes = entry.scopes),
+            })
+          }
+          const codeSyntax = (existing.codeSyntax && existing.codeSyntax.WEB) || ''
+          if (entry.codeSyntax !== undefined && codeSyntax !== entry.codeSyntax) {
+            meta.push({
+              what: 'code syntax',
+              from: codeSyntax || 'none',
+              to: entry.codeSyntax,
+              write: (v) => v.setVariableCodeSyntax('WEB', entry.codeSyntax),
+            })
+          }
+          if (
+            entry.description !== undefined &&
+            (existing.description || '') !== entry.description
+          ) {
+            meta.push({
+              what: 'description',
+              from: existing.description || 'none',
+              to: entry.description,
+              write: (v) => (v.description = entry.description),
+            })
+          }
+        }
+
+        if (!existing) {
+          report.created.push({
+            name: label(entry.name),
+            value:
+              writes.length === 1 && writes[0].modeName === null
+                ? writes[0].to
+                : writes.map((w) => (w.modeName ? `${w.modeName}: ${w.to}` : w.to)).join('; '),
           })
+        } else if (!writes.length && !meta.length) {
+          report.unchanged++
           continue
+        } else {
+          for (const w of writes)
+            report.updated.push({ name: label(w.where), from: w.from, to: w.to })
+          for (const m of meta) {
+            report.updated.push({ name: `${label(entry.name)} ${m.what}`, from: m.from, to: m.to })
+          }
         }
-        if (isAlias(current)) {
-          report.warnings.push(`${label(where)} is an alias; left unchanged.`)
-          continue
-        }
-        if (existing && same(current, value)) continue
-        writes.push({ modeName, where, from: show(current), to: show(value), write: () => value })
-      }
-      if (skip) continue
+        if (dryRun) continue
 
-      const meta = []
-      if (existing) {
-        if (entry.scopes && !sameScopes(existing.scopes, entry.scopes)) {
-          meta.push({
-            what: 'scopes',
-            from: existing.scopes.join(', ') || 'none',
-            to: entry.scopes.join(', ') || 'none',
-            write: (v) => (v.scopes = entry.scopes),
-          })
+        const variable =
+          existing || figma.variables.createVariable(entry.name, collection, entry.type)
+        if (!existing) {
+          variable.scopes = entry.scopes ?? []
+          if (entry.codeSyntax) variable.setVariableCodeSyntax('WEB', entry.codeSyntax)
+          if (entry.description) variable.description = entry.description
+          registry.set(key(want.name, entry.name), variable)
         }
-        const codeSyntax = (existing.codeSyntax && existing.codeSyntax.WEB) || ''
-        if (entry.codeSyntax !== undefined && codeSyntax !== entry.codeSyntax) {
-          meta.push({
-            what: 'code syntax',
-            from: codeSyntax || 'none',
-            to: entry.codeSyntax,
-            write: (v) => v.setVariableCodeSyntax('WEB', entry.codeSyntax),
-          })
+        for (const w of writes) {
+          variable.setValueForMode(
+            w.modeName === null ? defaultMode : modeIds.get(w.modeName),
+            w.write(),
+          )
         }
-        if (entry.description !== undefined && (existing.description || '') !== entry.description) {
-          meta.push({
-            what: 'description',
-            from: existing.description || 'none',
-            to: entry.description,
-            write: (v) => (v.description = entry.description),
-          })
-        }
+        for (const m of meta) m.write(variable)
       }
-
-      if (!existing) {
-        report.created.push({
-          name: label(entry.name),
-          value:
-            writes.length === 1 && writes[0].modeName === null
-              ? writes[0].to
-              : writes.map((w) => (w.modeName ? `${w.modeName}: ${w.to}` : w.to)).join('; '),
-        })
-      } else if (!writes.length && !meta.length) {
-        report.unchanged++
-        continue
-      } else {
-        for (const w of writes)
-          report.updated.push({ name: label(w.where), from: w.from, to: w.to })
-        for (const m of meta) {
-          report.updated.push({ name: `${label(entry.name)} ${m.what}`, from: m.from, to: m.to })
-        }
-      }
-      if (dryRun) continue
-
-      const variable =
-        existing || figma.variables.createVariable(entry.name, collection, entry.type)
-      if (!existing) {
-        variable.scopes = entry.scopes ?? []
-        if (entry.codeSyntax) variable.setVariableCodeSyntax('WEB', entry.codeSyntax)
-        if (entry.description) variable.description = entry.description
-        registry.set(key(want.name, entry.name), variable)
-      }
-      for (const w of writes) {
-        variable.setValueForMode(
-          w.modeName === null ? defaultMode : modeIds.get(w.modeName),
-          w.write(),
-        )
-      }
-      for (const m of meta) m.write(variable)
     }
+  }
 
+  for (const { want, collection, label } of prepared) {
     const names = new Set(want.variables.map((v) => v.name))
     if (collection) {
       for (const v of allVariables) {

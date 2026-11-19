@@ -35,7 +35,8 @@ A project keeps its configs in `design-tokens/`, each wrapped in a helper that c
 | `utopia.config.ts`          | `defineUtopia`         | The viewport and the Utopia type and space settings                                                                                                             |
 | `typography.config.ts`      | `defineTypography`     | Fonts, the letter spacing and line height rules, the roles                                                                                                      |
 | `figma-variables.config.ts` | `defineFigmaVariables` | The Figma collections and groups the variables go in                                                                                                            |
-| `tokens.config.ts`          | `defineTokens`         | Imports the four above and adds the Figma file key, the plugin's name and id, breakpoints and where the generated files go                                      |
+| `layout.config.ts`          | `defineLayout`         | Optional: the viewport, border widths, line heights and fixed sizes (hero heights) that Figma's semantics alias. See [Layout primitives](#layout-primitives)    |
+| `tokens.config.ts`          | `defineTokens`         | Imports the others and adds the Figma file key, the plugin's name and id, breakpoints and where the generated files go                                          |
 
 The command reads `design-tokens/tokens.config.ts`'s default export. The configs stay TypeScript: the command loads them with [jiti](https://github.com/unjs/jiti), so nothing has to be built first.
 
@@ -111,6 +112,46 @@ semantics: {
 - **Naming.** The plugin's **Code syntax** module (and `s58-tokens figma script code-syntax`) writes the names into Figma, after a dry run, so designers see them in Dev Mode too. It never changes code syntax a designer set, reports a name another variable already has, and lists what no rule covers. Then pull again.
 - **The CSS.** Add a file in the `s58/scss/semantics` format. A collection with the fluid Min and Max modes goes in `:root`: a token whose modes point at the same named token is its `var()`, and anything else becomes a `clamp()` across the Utopia viewport. A collection with one mode goes in `:root`. Any other has its default mode in `:root` and, for each other mode, a block of only what that mode changes, under the selector from `modes`: a mode that changes nothing in code needs no selector and stays design only. Sizes are rem, except tokens scoped only to line height, opacity or font weight, which stay unitless.
 - **The check** fails on an exclusion that matches nothing, a semantic that's neither named nor excluded, a mode with no selector, and no file in the semantics format. Before a project opts in, it only notes how many semantics don't reach code.
+
+## Layout primitives
+
+Some of Figma's semantics alias primitives that aren't Utopia steps or colours. `layout.config.ts` (`defineLayout`, passed to `defineTokens` as `layout`) makes them code's, so the plugin writes them like the space scale, under the names the file already uses, and every alias to them stays:
+
+```ts
+export default defineLayout({
+  // The Utopia viewport's two widths.
+  viewport: {
+    collection: 'Space primitives',
+    min: 'Layout @min/viewport',
+    max: 'Layout @max/viewport',
+  },
+  // Each width aliases a space primitive at both viewports: 1 → Space @min/7XS and Space @max/7XS.
+  borderWidths: {
+    collection: 'Primitives',
+    minGroup: 'primitive/borderWidth/@min',
+    maxGroup: 'primitive/borderWidth/@max',
+    widths: { 1: '7xs', 2: '5xs', 3: '5xs', 4: '4xs', 5: '3xs' },
+  },
+  // Ratios from the typography config's line height rules, the same at both viewports.
+  lineHeights: {
+    collection: 'Type primitives',
+    minGroup: 'Line height @min',
+    maxGroup: 'Line height @max',
+    values: { Default: { rule: 'copy', step: 0 } },
+  },
+  // Fixed sizes in px. With `css`, the build writes them too: --hero-size-small: 550px.
+  sizes: [
+    {
+      collection: 'Space primitives',
+      group: 'Hero',
+      values: { Compact: 450, Small: 550, Medium: 760, Large: 1000, XLarge: 1600 },
+      css: { prefix: 'hero-size', omit: ['Compact'] },
+    },
+  ],
+})
+```
+
+Every part is optional. A collection can hold primitives from more than one config (the border widths share the palette's collection here); two configs writing the same variable is an error. Add a file in the `s58/scss/layout` format for the sizes with `css`. The plugin never deletes, so primitives Figma had before, and semantics pointing at them, are moved over once, by hand or by a reviewed script.
 
 ## The check
 
