@@ -7,6 +7,8 @@
  * - fluid.tokens.json: `fluid.<group>…` named like the Figma `Fluid tokens` collection the plugin
  *   writes (`Font size/Step 0`, `Space size/S`, `Space size pairs/S—M`), with min, max and the
  *   `clamp()` in `$extensions`, plus letter spacing (em) and line height (ratio) per type step.
+ * - layout.tokens.json, when the layout config builds any sizes into CSS: `layout.<group>.<name>`
+ *   in px (`layout.Hero.Small`).
  *
  * Every token carries its CSS name as Figma code syntax (`com.figma.codeSyntax.WEB`), the same
  * value the plugin writes into Figma, so code and Figma name things the same way.
@@ -14,6 +16,7 @@
 import { calculateSpaceScale, calculateTypeScale } from 'utopia-core'
 
 import type { TokensConfig } from '../config'
+import { sizeCssName } from '../layout/layout'
 import { buildPalette } from '../palette/palette'
 import type { Oklch } from '../palette/types'
 import { buildLineHeightScales } from '../type/rules'
@@ -188,10 +191,30 @@ export function fluidTokens(config: TokensConfig): DtcgTree {
   return tree
 }
 
+/** The layout config's sizes that go into CSS, or undefined when none do. */
+export function layoutTokens(config: TokensConfig): DtcgTree | undefined {
+  const tree: DtcgTree = {}
+  for (const sizes of config.layout?.sizes ?? []) {
+    if (!sizes.css) continue
+    const omit = new Set(sizes.css.omit ?? [])
+    for (const [name, px] of Object.entries(sizes.values)) {
+      if (omit.has(name)) continue
+      put(tree, ['layout', ...sizes.group.split('/'), name], {
+        $type: 'dimension',
+        $value: { value: px, unit: 'px' },
+        $extensions: codeSyntax(sizeCssName(sizes.css.prefix, name)),
+      })
+    }
+  }
+  return Object.keys(tree).length ? tree : undefined
+}
+
 /** Every generated DTCG file, by file name. */
 export function generateDtcg(config: TokensConfig): Record<string, DtcgTree> {
+  const layout = layoutTokens(config)
   return {
     'palette.tokens.json': paletteTokens(config),
     'fluid.tokens.json': fluidTokens(config),
+    ...(layout ? { 'layout.tokens.json': layout } : {}),
   }
 }

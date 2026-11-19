@@ -1,5 +1,12 @@
 # Changelog
 
+## Unreleased
+
+- **Layout primitives.** A new optional config, `layout.config.ts` (`defineLayout`, `layout` in `defineTokens`), makes code own the primitives Figma's semantics alias that aren't Utopia steps or colours: the viewport's widths, border widths (aliases to space primitives at both viewports), line heights (ratios from the typography config's rules) and fixed sizes such as hero heights. The plugin writes them under the names the file already uses, so aliases to them stay, and the pulled file leaves them out.
+- **Sizes in CSS.** A size group with `css` is generated into `layout.tokens.json` and written by the new `s58/scss/layout` format, in px (`--hero-size-small: 550px`), so code and Figma read the same numbers.
+- **Aliases across collections.** A variable can alias one in another collection in its default mode (`aliasCollection`), and the variables module now writes every collection's plain values before any alias, so an alias can point at a variable a later collection creates in the same run.
+- Semantics that alias code-owned variables in the palette's collection, such as the border widths, resolve through them to the space scale. `defineLayout`, `layoutVariables`, `mergeCollections` and `sizeCssName` are exported.
+
 ## 0.6.1
 
 - **Mode blocks hold only what a mode changes.** In `s58/scss/semantics`, a collection with other modes has its default mode in `:root`, and each other mode's block holds only the tokens that mode changes, plus any that refer to them within the collection (a custom property is computed where it's declared). A mode that changes nothing in code writes nothing and needs no selector, so its variants can stay design only.

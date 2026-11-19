@@ -56,21 +56,28 @@ function setAt(tree: DtcgTree, path: string[], token: DtcgTree) {
   node[path[path.length - 1]] = token
 }
 
-/** The code-owned variables outside the palette and fluid collections, by collection and name. */
+/**
+ * The code-owned variables the generated tokens don't hold, by collection and name: everything but
+ * the fluid collection and the colours (the layout config's border widths can share the palette's
+ * collection).
+ */
 function ownedVariables(
   spec: VariablesSpec,
-  skip: readonly string[],
+  fluidCollection: string,
 ): Map<string, Map<string, number | string>> {
   const out = new Map<string, Map<string, number | string>>()
   for (const collection of spec.collections) {
-    if (skip.includes(collection.name)) continue
+    if (collection.name === fluidCollection) continue
     const names = new Map<string, number | string>()
     for (const v of collection.variables) {
+      if (v.type === 'COLOR') continue
       if ('value' in v && typeof v.value === 'number') names.set(v.name, v.value)
-      else if ('aliasOf' in v)
-        names.set(v.name, `{owned.${collection.name}.${v.aliasOf.split('/').join('.')}}`)
+      else if ('aliasOf' in v) {
+        const target = v.aliasCollection ?? collection.name
+        names.set(v.name, `{owned.${target}.${v.aliasOf.split('/').join('.')}}`)
+      }
     }
-    out.set(collection.name, names)
+    if (names.size) out.set(collection.name, names)
   }
   return out
 }
@@ -90,7 +97,7 @@ export function semanticTree(
   const exclude = semantics.exclude ?? []
   const colourCollection = semantics.colours?.collection
   const fluidGroups = semantics.fluid?.groups ?? []
-  const owned = ownedVariables(spec, [paletteCollection, fluidCollection])
+  const owned = ownedVariables(spec, fluidCollection)
   const collections = [
     ...new Set([...Object.keys(json).filter((k) => !k.startsWith('$')), ...owned.keys()]),
   ].sort((a, b) => b.length - a.length)
@@ -108,8 +115,8 @@ export function semanticTree(
         : `{semantic.${collection}.${rest}}`
     }
     if (collection === fluidCollection) return `{fluid.${rest}}`
-    if (path[0] === 'primitive') return `{${rest}}`
     if (owned.get(collection)?.has(path.join('/'))) return `{owned.${collection}.${rest}}`
+    if (collection === paletteCollection && path[0] === 'primitive') return `{${rest}}`
     return null
   }
 

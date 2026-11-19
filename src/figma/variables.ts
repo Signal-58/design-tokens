@@ -126,11 +126,16 @@ interface EntryMeta {
 }
 
 /**
- * A plain value or (`aliasOf`) an alias to another variable in the same collection, both in the
- * default mode; or (`modes`) a value for each named mode.
+ * A plain value or (`aliasOf`) an alias to another variable, in the same collection unless
+ * `aliasCollection` names another, both in the default mode; or (`modes`) a value for each named
+ * mode.
  */
 export type VariableEntry = EntryMeta &
-  ({ value: PlainValue } | { aliasOf: string } | { modes: Record<string, ModeValue> })
+  (
+    | { value: PlainValue }
+    | { aliasOf: string; aliasCollection?: string }
+    | { modes: Record<string, ModeValue> }
+  )
 
 export interface VariablesSpec {
   /** Colour values are only written when the file's documentColorProfile is this. */
@@ -145,6 +150,32 @@ export interface VariablesSpec {
     managedGroups: string[]
     variables: VariableEntry[]
   }[]
+}
+
+/**
+ * Folds collections that share a name into the first of them, in order: variables and managed
+ * groups are appended, and a variable named twice is an error.
+ */
+export function mergeCollections(
+  collections: readonly VariablesSpec['collections'][number][],
+): VariablesSpec['collections'] {
+  const out: VariablesSpec['collections'] = []
+  for (const c of collections) {
+    const into = out.find((o) => o.name === c.name)
+    if (!into) {
+      out.push({ ...c, managedGroups: [...c.managedGroups], variables: [...c.variables] })
+      continue
+    }
+    const names = new Set(into.variables.map((v) => v.name))
+    const twice = c.variables.filter((v) => names.has(v.name)).map((v) => v.name)
+    if (twice.length) {
+      throw new Error(`${c.name}: two configs write ${twice.join(', ')}`)
+    }
+    into.variables.push(...c.variables)
+    into.managedGroups.push(...c.managedGroups.filter((g) => !into.managedGroups.includes(g)))
+    if (c.modes && !into.modes) into.modes = c.modes
+  }
+  return out
 }
 
 /** 5 decimal places: well inside Figma's 32-bit floats and the 0.0005 compare tolerance. */

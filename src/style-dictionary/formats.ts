@@ -392,6 +392,29 @@ export function fluidSemanticsScss({ dictionary, options }: FormatArgs): string 
 }
 
 /** The package's formats, by the name a project's `build.files` uses. */
+/**
+ * `s58/scss/layout`: the layout config's sizes that go into CSS, in px as configured, a comment
+ * per group: `--hero-size-small: 550px`.
+ */
+export function layoutScss({ dictionary }: FormatArgs): string {
+  const lines: string[] = []
+  let heading = ''
+  for (const t of dictionary.allTokens) {
+    if (t.path[0] !== 'layout') continue
+    const name = cssNameOf(t)
+    if (!name) continue
+    const group = t.path.slice(1, -1).join('/')
+    if (group !== heading) {
+      if (lines.length) lines.push('')
+      lines.push(`  /* ${group} */`)
+      heading = group
+    }
+    const { value, unit } = t.original.$value as { value: number; unit: string }
+    lines.push(`  --${name}: ${value === 0 ? '0' : `${value}${unit}`};`)
+  }
+  return `${GENERATED_HEADER}\n\n:root {\n${lines.join('\n')}\n}\n`
+}
+
 export const packageFormats = {
   's58/scss/colour-primitives': colourPrimitivesScss,
   's58/scss/semantic-colours': semanticColoursScss,
@@ -402,4 +425,5 @@ export const packageFormats = {
   's58/scss/line-height-utilities': lineHeightUtilitiesScss,
   's58/scss/fluid-semantics': fluidSemanticsScss,
   's58/scss/semantics': semanticsScss,
+  's58/scss/layout': layoutScss,
 } as const
