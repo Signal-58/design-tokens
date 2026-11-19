@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.8.0
 
 - **Has Figma changed since the last pull?** The plugin's dry run compares the semantics Figma owns with the committed pulled file and lists what Figma has added, changed, removed or reordered, so the report says when to Export. `s58-tokens figma script check` does the same through `use_figma`: it sends a fingerprint of the file (a hash per token) rather than the file, and gets back only what differs. `s58-tokens figma diff <result>` reports it, and `figma pull <result>` writes it into the pulled file, exactly as Export would, so an agent can pull without the plugin. `buildDiffSpec`, `buildDiffScript`, `applySemanticsDiff`, `describeDiff` and `fingerprint` are exported.
 - `exportSemantics` (the Figma side) takes an optional second argument that decides what's code-owned, and `figmaScript` can inline helper files.
