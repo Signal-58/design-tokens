@@ -73,7 +73,7 @@ Each built file goes through the project's formatter as it's written, when the c
 
 The semantics designers make in Figma (colour roles, Buttons, Forms…) reach code through one file, the **pulled file**, by convention `design-tokens/figma/semantics.tokens.json`:
 
-- **From the plugin:** press **Export**. The browser saves `semantics.tokens.json`; put it in `design-tokens/figma/`, run `s58-tokens build` and commit.
+- **From the plugin:** press **Export**. The browser saves `semantics.tokens.json`; put it in `design-tokens/figma/`, run `s58-tokens build` and commit. Keep the file out of the project's formatter, so it's committed exactly as exported and each pull's diff shows only what changed in Figma.
 - **Through the Figma MCP:** `s58-tokens figma script export` prints the same code for `use_figma`; save the `tokens` it returns. `use_figma` returns at most 48,000 bytes, so a large file needs `--collections=`, one collection at a time, or the plugin.
 
 The file holds every collection Figma owns, one tree per collection, with every mode's value in `$extensions['com.signal58.modes']` and every alias as a reference by collection and name (`{Primitives.primitive.colors.amber.6}`). Code syntax, scopes and descriptions come too; variable ids don't, so the file changes only when the tokens do. The variables the plugin writes from code are left out. Raw colours are in the file's colour profile, unlike Figma's own export, which labels Display P3 values `srgb`.
@@ -89,6 +89,28 @@ semantics: {
 ```
 
 A reference to a collection the build doesn't read stops the build, naming the token. Figma's own exports, one file per mode (`semantics: { colours: { light: '…/light.tokens.json' }, fluid: { file, groups } }`), still work.
+
+## Every semantic in code
+
+Once a project sets `exclude` or `codeSyntax` in `build.semantics`, every semantic in the pulled file reaches code unless it's excluded:
+
+```ts
+semantics: {
+  file: 'design-tokens/figma/semantics.tokens.json',
+  colours: { collection: 'Colours', modes: { light: 'Light', dark: 'Dark' } },
+  fluid: { collection: 'Fluid tokens', mode: 'Max', groups: ['Buttons', 'Forms', 'Icons'] },
+  // Stays in Figma: no code syntax from the plugin, no CSS. References through it still resolve.
+  exclude: ['Sizes', 'Fluid tokens/Layout/Hero'],
+  // Names for what Figma hasn't named: Grid/Two thirds → grid-two-thirds. '' for no prefix.
+  codeSyntax: { 'Fluid tokens/Grid': 'grid', 'Layout blocks/Blocks': 'layout-block' },
+  // A selector for each mode of a collection with modes other than Light/Dark and Min/Max.
+  modes: { 'Layout blocks': { Flush: "[data-block-spacing='flush']" } },
+},
+```
+
+- **Naming.** The plugin's **Code syntax** module (and `s58-tokens figma script code-syntax`) writes the names into Figma, after a dry run, so designers see them in Dev Mode too. It never changes code syntax a designer set, reports a name another variable already has, and lists what no rule covers. Then pull again.
+- **The CSS.** Add a file in the `s58/scss/semantics` format. A collection with the fluid Min and Max modes goes in `:root`: a token whose modes point at the same named token is its `var()`, and anything else becomes a `clamp()` across the Utopia viewport. A collection with one mode goes in `:root`, and any other gets a block per mode. Sizes are rem, except tokens scoped only to line height, opacity or font weight, which stay unitless.
+- **The check** fails on an exclusion that matches nothing, a semantic that's neither named nor excluded, a mode with no selector, and no file in the semantics format. Before a project opts in, it only notes how many semantics don't reach code.
 
 ## The check
 

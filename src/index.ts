@@ -3,6 +3,7 @@
  * and runs the s58-tokens command; this is the API those configs and any project scripts use.
  */
 export {
+  codeSyntaxSpecFor,
   colourScopesSpecFor,
   DEFAULT_CONFIG_PATH,
   defineTokens,
@@ -56,6 +57,14 @@ export {
   pulledColourTokens,
   pulledFluidTokens,
 } from './dtcg/figma'
+export { codeSyntaxFor, covers, isExcluded, isPulled, kebab } from './semantics/rules'
+export { semanticTree, stripExcluded } from './semantics/tree'
+export { semanticsScss } from './semantics/format'
+export {
+  buildCodeSyntaxScript,
+  buildCodeSyntaxSpec,
+  type CodeSyntaxSpec,
+} from './figma/code-syntax'
 export {
   buildExportScript,
   buildExportSpec,

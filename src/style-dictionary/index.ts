@@ -8,7 +8,9 @@ import path from 'node:path'
 import StyleDictionary from 'style-dictionary'
 import type { DesignTokens, Format, TransformedToken } from 'style-dictionary/types'
 
-import type { TokensConfig } from '../config'
+import { variablesSpecFor, type TokensConfig } from '../config'
+import { isPulled } from '../semantics/rules'
+import { semanticTree, stripExcluded } from '../semantics/tree'
 import {
   figmaColourTokens,
   figmaFluidTokens,
@@ -41,6 +43,22 @@ export interface PulledSemantics {
   colours?: { collection: string; modes: Readonly<Record<string, string>> }
   /** The fluid collection, the mode to read (the semantics alias the same sizes in both) and its semantic groups, in output order. */
   fluid?: { collection: string; mode: string; groups: readonly string[] }
+  /**
+   * Collections and groups that stay in Figma, by path: `Sizes`, `Fluid tokens/Layout/Hero`. They
+   * get no code syntax from the plugin and no CSS; references through them still resolve.
+   */
+  exclude?: readonly string[]
+  /**
+   * Names for the semantics Figma hasn't named, by group: `{ 'Fluid tokens/Grid': 'grid' }` gives
+   * `Grid/Two thirds` the code syntax `grid-two-thirds`. The plugin writes them into Figma.
+   */
+  codeSyntax?: Readonly<Record<string, string>>
+  /**
+   * The selector for each mode of a collection with modes other than Light/Dark and Min/Max:
+   * `{ 'Layout blocks': { Default: ':root', Flush: "[data-block-spacing='flush']" } }`. The
+   * default mode's is `:root` unless given.
+   */
+  modes?: Readonly<Record<string, Readonly<Record<string, string>>>>
 }
 
 /** Figma's own variable exports, one file per mode. Superseded by the pulled file (`PulledSemantics`). */
@@ -61,21 +79,53 @@ export interface BuildConfig {
 const readJson = (root: string, file: string) =>
   JSON.parse(fs.readFileSync(path.join(root, file), 'utf8')) as Record<string, unknown>
 
-export const isPulled = (semantics: BuildConfig['semantics']): semantics is PulledSemantics =>
-  !!semantics && 'file' in semantics
+export { isPulled }
 
 /** The semantic groups the build reads from the fluid collection. */
 export const fluidSemanticGroups = (semantics: BuildConfig['semantics']): readonly string[] =>
   semantics?.fluid?.groups ?? []
 
-function semanticTrees(semantics: BuildConfig['semantics'], root: string): DtcgTree[] {
+function semanticTrees(config: TokensConfig, root: string): DtcgTree[] {
+  const semantics = config.build?.semantics
   if (!semantics) return []
   if (isPulled(semantics)) {
     const json = readJson(root, semantics.file)
     const { colours, fluid } = semantics
+    const exclude = semantics.exclude ?? []
     return [
-      ...(colours ? [pulledColourTokens(json, colours.collection, colours.modes)] : []),
-      ...(fluid ? [pulledFluidTokens(json, fluid.collection, fluid.mode, fluid.groups)] : []),
+      ...(colours
+        ? [
+            stripExcluded(
+              pulledColourTokens(json, colours.collection, colours.modes),
+              colours.collection,
+              exclude,
+              2,
+            ),
+          ]
+        : []),
+      ...(fluid
+        ? [
+            stripExcluded(
+              pulledFluidTokens(json, fluid.collection, fluid.mode, fluid.groups),
+              fluid.collection,
+              exclude,
+              1,
+            ),
+          ]
+        : []),
+      // Every other semantic, once the project opts in by choosing what stays in Figma or how to
+      // name what Figma hasn't.
+      ...(semantics.exclude !== undefined || semantics.codeSyntax !== undefined
+        ? [
+            semanticTree(
+              json,
+              semantics,
+              variablesSpecFor(config),
+              config.palette.figma.collection,
+              config.figmaVariables.fluid.collection,
+            ),
+          ]
+        : []),
     ]
   }
   return [
@@ -90,10 +140,7 @@ function semanticTrees(semantics: BuildConfig['semantics'], root: string): DtcgT
 
 /** The whole token tree the build reads: generated primitives plus Figma's semantics. */
 export function tokenTree(config: TokensConfig, root = process.cwd()): DtcgTree {
-  return mergeTrees(
-    ...Object.values(generateDtcg(config)),
-    ...semanticTrees(config.build?.semantics, root),
-  )
+  return mergeTrees(...Object.values(generateDtcg(config)), ...semanticTrees(config, root))
 }
 
 /** Every file in `build.files`, formatted, without writing anything. */

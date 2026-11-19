@@ -13,6 +13,7 @@ import {
   type FluidKind,
 } from '../dtcg/generate'
 import { GENERATED_HEADER } from '../responsive/breakpoints'
+import { semanticsScss } from '../semantics/format'
 
 export interface FormatArgs {
   dictionary: Dictionary
@@ -400,4 +401,5 @@ export const packageFormats = {
   's58/scss/line-height-primitives': lineHeightPrimitivesScss,
   's58/scss/line-height-utilities': lineHeightUtilitiesScss,
   's58/scss/fluid-semantics': fluidSemanticsScss,
+  's58/scss/semantics': semanticsScss,
 } as const

@@ -7,6 +7,7 @@ import path from 'node:path'
 import { createJiti } from 'jiti'
 
 import { buildColourScopesSpec, type ColourScopesSpec } from './figma/colour-scopes'
+import { buildCodeSyntaxSpec, type CodeSyntaxSpec } from './figma/code-syntax'
 import { fileKeyFrom, isFileKey } from './figma/file-key'
 import type { FileGuard } from './figma/inline'
 import { checkKeys, keysOf, type Exactly } from './keys'
@@ -163,6 +164,16 @@ export function variablesSpecFor(config: TokensConfig): VariablesSpec {
 export function colourScopesSpecFor(config: TokensConfig): ColourScopesSpec | undefined {
   const rules = config.figmaVariables.colourScopes
   return rules?.length ? buildColourScopesSpec(rules) : undefined
+}
+
+/**
+ * The code syntax module's spec for a project, or undefined when it reads Figma's own exports or
+ * sets no rules (`build.semantics.codeSyntax`).
+ */
+export function codeSyntaxSpecFor(config: TokensConfig): CodeSyntaxSpec | undefined {
+  const semantics = config.build?.semantics
+  if (!semantics || !('file' in semantics) || !semantics.codeSyntax) return undefined
+  return buildCodeSyntaxSpec(variablesSpecFor(config), semantics.codeSyntax, semantics.exclude)
 }
 
 /** The text styles module's spec for a project, for all roles or the ones named. */

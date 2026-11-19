@@ -129,6 +129,25 @@
     }
   }
 
+  function codeSyntaxSection(r) {
+    return {
+      pending: r.named.length,
+      html:
+        `<h2 class="module">Code syntax</h2>` +
+        list(
+          r.dryRun ? 'To name' : 'Named',
+          r.named.map((n) => `${esc(n.name)} → <code>${esc(n.to)}</code>`),
+        ) +
+        list(
+          'No rule names these, so they won’t reach code (name them in Figma, add a rule or exclude them)',
+          r.unnamed.map(esc),
+          'warn',
+        ) +
+        list('Warnings', r.warnings.map(esc), 'warn') +
+        `<p class="muted">${plural(r.unchanged, 'variable')} already named; ${plural(r.designOnly, 'variable')} excluded (design only).</p>`,
+    }
+  }
+
   function textStylesSection(r) {
     const pending = r.variables.length + r.created.length + r.updated.length
     return {
@@ -159,6 +178,7 @@
     const sections = [
       reports.variables && variablesSection(reports.variables),
       reports.colourScopes && colourScopesSection(reports.colourScopes),
+      reports.codeSyntax && codeSyntaxSection(reports.codeSyntax),
       reports.textStyles && textStylesSection(reports.textStyles),
     ].filter(Boolean)
     const pending = sections.reduce((n, s) => n + s.pending, 0)

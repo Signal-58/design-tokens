@@ -12,6 +12,7 @@
  *   s58-tokens figma script variables --dry-run [--collections=Primitives]   # use_figma
  *   s58-tokens figma script colour-scopes --dry-run
  *   s58-tokens figma script text-styles --dry-run [--roles=heading,default]
+ *   s58-tokens figma script code-syntax --dry-run              # names semantics by build.semantics.codeSyntax
  *   s58-tokens figma script export [--collections=Colours]   # the semantics Figma owns, read only
  *
  * Figma's REST API can't write variables or styles on a Pro plan, so the code runs inside Figma: as
@@ -22,6 +23,7 @@ import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 
 import {
+  codeSyntaxSpecFor,
   colourScopesSpecFor,
   DEFAULT_CONFIG_PATH,
   fileGuardFor,
@@ -34,6 +36,7 @@ import { checkTokens } from './check'
 import { initProject } from './init'
 import { buildColourScopesScript } from './figma/colour-scopes'
 import { buildExportScript, buildExportSpec } from './figma/semantics'
+import { buildCodeSyntaxScript } from './figma/code-syntax'
 import { pluginManifest } from './figma/manifest'
 import { buildFigmaPlugin } from './figma/plugin'
 import { buildTextStylesScript } from './figma/text-styles'
@@ -57,7 +60,7 @@ const USAGE = `Usage: s58-tokens [--config=<file>] <command>
                                          semantic values and APCA misses (for CI)
   palette report                         Contrast on white and black, APCA floors, gamut fit
   figma plugin [--watch]                 Build the project's Figma plugin (code.js)
-  figma script <variables|colour-scopes|text-styles|export>
+  figma script <variables|colour-scopes|code-syntax|text-styles|export>
                                          A use_figma script, on stdout. export reads
                                          the semantics Figma owns; save what it returns
                                          as the pulled file (build.semantics.file)
@@ -127,6 +130,7 @@ function buildPlugin(config: TokensConfig): void {
     {
       variables: variablesSpecFor(config),
       colourScopes: colourScopesSpecFor(config),
+      codeSyntax: codeSyntaxSpecFor(config),
       textStyles: textStylesSpecFor(config),
       export: buildExportSpec(variablesSpecFor(config)),
     },
@@ -186,6 +190,10 @@ function script(config: TokensConfig, args: string[]): void {
       dryRun,
       fileGuardFor(config),
     )
+  } else if (module === 'code-syntax') {
+    const spec = codeSyntaxSpecFor(config)
+    if (!spec) throw new Error('The config sets no build.semantics.codeSyntax rules.')
+    code = buildCodeSyntaxScript(spec, dryRun, fileGuardFor(config))
   } else if (module === 'export') {
     code = buildExportScript(
       buildExportSpec(variablesSpecFor(config), list(option(args, 'collections'))),
