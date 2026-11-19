@@ -9,7 +9,13 @@ import StyleDictionary from 'style-dictionary'
 import type { DesignTokens, Format, TransformedToken } from 'style-dictionary/types'
 
 import type { TokensConfig } from '../config'
-import { figmaColourTokens, figmaFluidTokens, mergeTrees } from '../dtcg/figma'
+import {
+  figmaColourTokens,
+  figmaFluidTokens,
+  mergeTrees,
+  pulledColourTokens,
+  pulledFluidTokens,
+} from '../dtcg/figma'
 import { generateDtcg, type DtcgTree } from '../dtcg/generate'
 import { formatOklch } from '../palette/colour'
 import { cssNameOf, packageFormats, type FormatArgs } from './formats'
@@ -24,14 +30,30 @@ export interface BuildFile {
 
 export type ProjectFormat = (args: FormatArgs) => string | Promise<string>
 
+/**
+ * The semantics Figma owns, from the pulled file: what the plugin's Export button, or
+ * `s58-tokens figma script export`, writes.
+ */
+export interface PulledSemantics {
+  /** The pulled file, from the project root: by convention `design-tokens/figma/semantics.tokens.json`. */
+  file: string
+  /** The colour collection, and the Figma mode each output mode reads: `{ light: 'Light', dark: 'Dark' }`. */
+  colours?: { collection: string; modes: Readonly<Record<string, string>> }
+  /** The fluid collection, the mode to read (the semantics alias the same sizes in both) and its semantic groups, in output order. */
+  fluid?: { collection: string; mode: string; groups: readonly string[] }
+}
+
+/** Figma's own variable exports, one file per mode. Superseded by the pulled file (`PulledSemantics`). */
+export interface FigmaExportSemantics {
+  /** The colour export for each mode: `{ light: '…/light.tokens.json', dark: '…' }`. */
+  colours?: Readonly<Record<string, string>>
+  /** The Fluid tokens export (one mode) and its semantic groups, in output order. */
+  fluid?: { file: string; groups: readonly string[] }
+}
+
 export interface BuildConfig {
-  /** Figma's exports of the semantics Figma owns, from the project root. */
-  semantics?: {
-    /** The colour export for each mode: `{ light: '…/light.tokens.json', dark: '…' }`. */
-    colours?: Readonly<Record<string, string>>
-    /** The Fluid tokens export (one mode) and its semantic groups, in output order. */
-    fluid?: { file: string; groups: readonly string[] }
-  }
+  /** The semantics Figma owns: the pulled file, or Figma's own exports. Paths from the project root. */
+  semantics?: PulledSemantics | FigmaExportSemantics
   files: readonly BuildFile[]
   formats?: Readonly<Record<string, ProjectFormat>>
 }
@@ -39,17 +61,38 @@ export interface BuildConfig {
 const readJson = (root: string, file: string) =>
   JSON.parse(fs.readFileSync(path.join(root, file), 'utf8')) as Record<string, unknown>
 
-/** The whole token tree the build reads: generated primitives plus Figma's semantics. */
-export function tokenTree(config: TokensConfig, root = process.cwd()): DtcgTree {
-  const semantics = config.build?.semantics
-  return mergeTrees(
-    ...Object.values(generateDtcg(config)),
-    ...Object.entries(semantics?.colours ?? {}).map(([mode, file]) =>
+export const isPulled = (semantics: BuildConfig['semantics']): semantics is PulledSemantics =>
+  !!semantics && 'file' in semantics
+
+/** The semantic groups the build reads from the fluid collection. */
+export const fluidSemanticGroups = (semantics: BuildConfig['semantics']): readonly string[] =>
+  semantics?.fluid?.groups ?? []
+
+function semanticTrees(semantics: BuildConfig['semantics'], root: string): DtcgTree[] {
+  if (!semantics) return []
+  if (isPulled(semantics)) {
+    const json = readJson(root, semantics.file)
+    const { colours, fluid } = semantics
+    return [
+      ...(colours ? [pulledColourTokens(json, colours.collection, colours.modes)] : []),
+      ...(fluid ? [pulledFluidTokens(json, fluid.collection, fluid.mode, fluid.groups)] : []),
+    ]
+  }
+  return [
+    ...Object.entries(semantics.colours ?? {}).map(([mode, file]) =>
       figmaColourTokens(readJson(root, file), mode),
     ),
-    ...(semantics?.fluid
+    ...(semantics.fluid
       ? [figmaFluidTokens(readJson(root, semantics.fluid.file), semantics.fluid.groups)]
       : []),
+  ]
+}
+
+/** The whole token tree the build reads: generated primitives plus Figma's semantics. */
+export function tokenTree(config: TokensConfig, root = process.cwd()): DtcgTree {
+  return mergeTrees(
+    ...Object.values(generateDtcg(config)),
+    ...semanticTrees(config.build?.semantics, root),
   )
 }
 

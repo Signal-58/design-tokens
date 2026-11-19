@@ -43,11 +43,25 @@ export {
   tokenTree,
   type BuildConfig,
   type BuildFile,
+  type FigmaExportSemantics,
   type ProjectFormat,
+  type PulledSemantics,
 } from './style-dictionary'
 export * from './style-dictionary/formats'
 export * from './dtcg/generate'
-export { figmaColourTokens, figmaFluidTokens, mergeTrees } from './dtcg/figma'
+export {
+  figmaColourTokens,
+  figmaFluidTokens,
+  mergeTrees,
+  pulledColourTokens,
+  pulledFluidTokens,
+} from './dtcg/figma'
+export {
+  buildExportScript,
+  buildExportSpec,
+  formatExport,
+  type ExportSpec,
+} from './figma/semantics'
 export { builtFiles, dtcgFiles, formatOutput, type OutputFile } from './outputs'
 export { checkTokens, type CheckResult } from './check'
 export { generatedApcaFailures } from './palette/report'

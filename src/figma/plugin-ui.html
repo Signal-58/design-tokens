@@ -71,11 +71,17 @@
 <div id="report"><p class="muted">Checking the file…</p></div>
 <footer>
   <button id="close">Close</button>
+  <button id="export" title="Download the semantics Figma owns, as the file the build reads">
+    Export
+  </button>
   <button id="apply" class="primary" disabled>Apply</button>
 </footer>
 <script>
   const el = document.getElementById('report')
   const apply = document.getElementById('apply')
+  const exportButton = document.getElementById('export')
+  // The last report, so an export's notice can sit above it.
+  let reportHtml = ''
   const esc = (s) =>
     String(s).replace(
       /[&<>"]/g,
@@ -161,37 +167,76 @@
         ? `${plural(pending, 'change')} to apply`
         : 'Figma already matches the plugin’s config'
       : `Applied ${plural(pending, 'change')}`
-    el.innerHTML =
+    reportHtml =
       `<h1>${heading}</h1>` +
       sections.map((s) => s.html).join('') +
       `<p class="muted">Checked that this is the project’s file, by its ${checkedBy === 'name' ? 'name (Figma didn’t give its key)' : 'key'}.</p>` +
       `<p class="muted">Built from the config at ${esc(new Date(builtAt).toLocaleString('en-GB'))} with @signal58/design-tokens ${esc(version)}. If you’ve changed the config since, run <code>pnpm app:figma:plugin</code> (or keep <code>:watch</code> running) and reopen the plugin.</p>`
+    el.innerHTML = reportHtml
     apply.disabled = !dryRun || pending === 0
+  }
+
+  // The pulled file, saved by the browser (usually to Downloads).
+  function exported(json, report) {
+    const blob = new Blob([json], { type: 'application/json' })
+    const link = document.createElement('a')
+    link.href = URL.createObjectURL(blob)
+    link.download = 'semantics.tokens.json'
+    document.body.appendChild(link)
+    link.click()
+    link.remove()
+    setTimeout(() => URL.revokeObjectURL(link.href), 1000)
+    const total = report.collections.reduce((n, c) => n + c.variables, 0)
+    el.innerHTML =
+      `<h1>Exported ${plural(total, 'variable')}</h1>` +
+      `<p>Saved <code>semantics.tokens.json</code>. Put it in <code>design-tokens/figma/</code>, run <code>s58-tokens build</code> and commit, or hand it to whoever does.</p>` +
+      list(
+        'Collections',
+        report.collections.map((c) => `${esc(c.name)} <span class="muted">(${c.variables})</span>`),
+      ) +
+      `<p class="muted">${plural(report.codeOwned, 'variable')} the plugin writes from code left out.</p>` +
+      list('Warnings', report.warnings.map(esc), 'warn') +
+      reportHtml
+    exportButton.disabled = false
+    exporting = false
   }
 
   onmessage = (event) => {
     const msg = event.data.pluginMessage
+    if (msg.type === 'exported') exported(msg.json, msg.report)
     if (msg.type === 'report')
       render(msg.dryRun, msg.reports, msg.builtAt, msg.version, msg.checkedBy)
     if (msg.type === 'blocked') {
       el.innerHTML = `<h1 class="error">Wrong file</h1><p>${esc(msg.message)}</p>`
       apply.disabled = true
+      exportButton.disabled = true
     }
     if (msg.type === 'error') {
       // Unlike use_figma, a plugin keeps the changes made before an error. Rerunning is safe.
-      const what = applying
-        ? 'Stopped partway. Some changes may already be made; fix the problem and run the plugin again.'
-        : 'The check failed, so nothing was changed.'
+      const what = exporting
+        ? 'The export failed. Nothing in the file was changed.'
+        : applying
+          ? 'Stopped partway. Some changes may already be made; fix the problem and run the plugin again.'
+          : 'The check failed, so nothing was changed.'
+      exporting = false
       el.innerHTML = `<h1 class="error">${what}</h1><p>${esc(msg.message)}</p>`
       apply.disabled = true
+      exportButton.disabled = false
     }
   }
   let applying = false
+  let exporting = false
   apply.onclick = () => {
     applying = true
     apply.disabled = true
     el.innerHTML = '<p class="muted">Applying…</p>'
     parent.postMessage({ pluginMessage: { type: 'apply' } }, '*')
+  }
+  exportButton.onclick = () => {
+    exporting = true
+    exportButton.disabled = true
+    el.innerHTML = '<p class="muted">Reading the file…</p>' + reportHtml
+    parent.postMessage({ pluginMessage: { type: 'export' } }, '*')
   }
   document.getElementById('close').onclick = () =>
     parent.postMessage({ pluginMessage: { type: 'close' } }, '*')

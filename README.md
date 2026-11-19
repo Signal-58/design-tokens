@@ -6,7 +6,7 @@ Design tokens that start in code and land in Figma:
 - **Fluid type and space** from Utopia settings, with the same maths as [utopia.fyi](https://utopia.fyi) (`utopia-core`).
 - **Type rules**: letter spacing and line height worked out for every type step, and typography roles that become Figma text style groups.
 - **Breakpoints** (optional) and a `_fluid.scss` helper for one-off fluid values, on the same viewport as the scales.
-- **A Figma plugin**, built for each project from its own configs, that writes the primitives, the fluid tokens that alias them, scopes, code syntax and text styles into the project's file. It dry-runs first and never deletes.
+- **A Figma plugin**, built for each project from its own configs, that writes the primitives, the fluid tokens that alias them, scopes, code syntax and text styles into the project's file. It dry-runs first and never deletes. Its **Export** button pulls the semantics Figma owns back into the repository as one file the build reads.
 
 ## Starting a project
 
@@ -21,7 +21,7 @@ s58-tokens figma plugin
 
 - **Kept from S58 Marketing:** the contrast ladder, chroma curve and APCA floors; the letter spacing and line height rules; the Utopia settings and viewport, as a first guess to tune at kickoff; and the Figma collection, group and role names. They match the S58 starter Figma file.
 - **Placeholders:** three colour scales (brand, accent and a neutral across the whole range), from the colours given or placeholder ones. Inter for every font family.
-- **Left out until the project needs them:** breakpoints, `_fluid.scss` (it needs `utopia-core-scss`), the semantic colours (export them from Figma first) and a formatter. `tokens.config.ts` shows each one, commented out.
+- **Left out until the project needs them:** breakpoints, `_fluid.scss` (it needs `utopia-core-scss`), the semantic colours (pull them with the plugin's Export first) and a formatter. `tokens.config.ts` shows each one, commented out.
 
 The built SCSS goes to `src/styles/tokens` (`--out=` to change it). `--file-key=` records the project's Figma file: paste its link (**Share → Copy link**), in quotes, or just its key, the part of the link after `/design/`. A branch's link gives the main file's key. `--id=` sets the plugin id (default `<name>-tokens-dev`), and `--force` overwrites existing files; without it, `init` refuses.
 
@@ -54,19 +54,41 @@ s58-tokens figma plugin [--watch]   # <plugin dir>/code.js, all modules
 s58-tokens figma script variables --dry-run --collections=Primitives   # for the Figma MCP's use_figma
 s58-tokens figma script colour-scopes --dry-run
 s58-tokens figma script text-styles --dry-run --roles=heading,default
+s58-tokens figma script export --collections=Colours                  # read only: the semantics Figma owns
 ```
 
 `--config=<file>` reads another config.
 
 ## The build
 
-`s58-tokens build` writes the primitives as DTCG files (format 2025.10) to `design-tokens/generated/`: `palette.tokens.json` and `fluid.tokens.json`. Commit them; other tools and platforms can read them. It then reads them, plus the Figma exports listed in `build.semantics`, through [Style Dictionary](https://styledictionary.com) 5 and writes each file in `build.files`:
+`s58-tokens build` writes the primitives as DTCG files (format 2025.10) to `design-tokens/generated/`: `palette.tokens.json` and `fluid.tokens.json`. Commit them; other tools and platforms can read them. It then reads them, plus the semantics Figma owns (`build.semantics`, below), through [Style Dictionary](https://styledictionary.com) 5 and writes each file in `build.files`:
 
 - **Names** come from each token's Figma code syntax (`com.figma.codeSyntax.WEB`). The generated tokens carry the same code syntax the plugin writes into Figma, and a semantic token without code syntax doesn't reach code.
-- **Figma's colour exports** go in under `color.<mode>`, and each alias to `primitive/colors/…` becomes a reference to the generated palette. Figma's own resolved values are dropped: in a Display P3 file they're P3 numbers labelled `srgb`.
+- **The semantic colours** go in under `color.<mode>`, and each alias to `primitive/colors/…` becomes a reference to the generated palette.
 - **Formats** in the package: `s58/scss/colour-primitives`, `s58/scss/semantic-colours`, `s58/scss/font-size-primitives`, `s58/scss/space-primitives`, `s58/scss/letter-spacing-primitives`, `s58/scss/line-height-primitives`, `s58/scss/line-height-utilities` and `s58/scss/fluid-semantics`. Each reads the whole dictionary and picks its tokens by path. A project adds its own under `build.formats`, using the helpers the package exports (`semanticColourEntries`, `fluidEntries`, `fontSizeEntries`).
 
 Each built file goes through the project's formatter as it's written, when the config names one (`format: { command: ['oxfmt', '--stdin-filepath={file}'] }`), so the build writes what the repository keeps. `builtFiles(config)` returns the same files without writing them, for tests.
+
+## Pulling Figma's semantics
+
+The semantics designers make in Figma (colour roles, Buttons, Forms…) reach code through one file, the **pulled file**, by convention `design-tokens/figma/semantics.tokens.json`:
+
+- **From the plugin:** press **Export**. The browser saves `semantics.tokens.json`; put it in `design-tokens/figma/`, run `s58-tokens build` and commit.
+- **Through the Figma MCP:** `s58-tokens figma script export` prints the same code for `use_figma`; save the `tokens` it returns. `use_figma` returns at most 48,000 bytes, so a large file needs `--collections=`, one collection at a time, or the plugin.
+
+The file holds every collection Figma owns, one tree per collection, with every mode's value in `$extensions['com.signal58.modes']` and every alias as a reference by collection and name (`{Primitives.primitive.colors.amber.6}`). Code syntax, scopes and descriptions come too; variable ids don't, so the file changes only when the tokens do. The variables the plugin writes from code are left out. Raw colours are in the file's colour profile, unlike Figma's own export, which labels Display P3 values `srgb`.
+
+`build.semantics` says what the build reads from it:
+
+```ts
+semantics: {
+  file: 'design-tokens/figma/semantics.tokens.json',
+  colours: { collection: 'Colours', modes: { light: 'Light', dark: 'Dark' } },
+  fluid: { collection: 'Fluid tokens', mode: 'Max', groups: ['Buttons', 'Forms', 'Icons'] },
+},
+```
+
+A reference to a collection the build doesn't read stops the build, naming the token. Figma's own exports, one file per mode (`semantics: { colours: { light: '…/light.tokens.json' }, fluid: { file, groups } }`), still work.
 
 ## The check
 

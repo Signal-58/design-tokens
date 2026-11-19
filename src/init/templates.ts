@@ -375,9 +375,12 @@ export default defineTokens({
   //     output: { scss: '${out}/_breakpoints.scss', css: '${out}/_breakpoints-css.scss' },
   //   },
   build: {
-    // Once designers have set up the semantic colours, export them from Figma (one file per mode)
-    // and add them here, with a semantic colours file below:
-    //   semantics: { colours: { light: 'design-tokens/figma/colors/light.tokens.json', dark: '…' } },
+    // Once designers have set up the semantic colours, pull them with the plugin's Export button
+    // (save the file in design-tokens/figma/) and add them here, with a semantic colours file below:
+    //   semantics: {
+    //     file: 'design-tokens/figma/semantics.tokens.json',
+    //     colours: { collection: 'Colours', modes: { light: 'Light', dark: 'Dark' } },
+    //   },
     //   { destination: '${out}/_color-semantic.scss', format: 's58/scss/semantic-colours',
     //     options: { modes: [{ mode: 'light', selector: ':root' }, { mode: 'dark', selector: "[data-theme='dark']" }] } },
     files: [
