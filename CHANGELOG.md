@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+- **Export.** The plugin's new **Export** button pulls the semantics Figma owns into one file, `semantics.tokens.json`, with every collection and mode, aliases as references by name, code syntax, scopes and descriptions, and raw colours in the file's own colour profile. It leaves out what the plugin writes from code. `s58-tokens figma script export [--collections=]` gives the same code for `use_figma`.
+- **The build reads the pulled file.** `build.semantics.file` names it, with the colour collection and its modes (`colours: { collection, modes }`) and the fluid collection, mode and groups (`fluid: { collection, mode, groups }`). The trees are the same as from Figma's own exports, so the built files don't change. Figma's own exports still work.
+- `buildExportSpec`, `buildExportScript`, `formatExport`, `pulledColourTokens` and `pulledFluidTokens` are exported.
+
 ## 0.4.0
 
 - **Misspelt keys are errors.** `definePalette`, `defineUtopia`, `defineTypography`, `defineFigmaVariables` and `defineTokens` reject keys their config doesn't have, all the way down, as type errors and when the config loads, naming the nearest key (`"colorScopes" isn't a setting in figmaVariables. Did you mean "colourScopes"?`). Before, a misspelt key was ignored without a word. `colourScopes` given as one rule instead of a list is an error too.

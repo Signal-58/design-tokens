@@ -15,7 +15,7 @@ import path from 'node:path'
 import type { TokensConfig } from './config'
 import { builtFiles, dtcgFiles, type OutputFile } from './outputs'
 import { generatedApcaFailures } from './palette/report'
-import { tokenTree } from './style-dictionary'
+import { fluidSemanticGroups, tokenTree } from './style-dictionary'
 
 const isRecord = (v: unknown): v is Record<string, unknown> =>
   typeof v === 'object' && v !== null && !Array.isArray(v)
@@ -50,7 +50,7 @@ function rawSemantics(config: TokensConfig, root: string): string[] {
   }
   walk(tree.color, ['color'])
   const fluid = tree.fluid
-  for (const group of config.build?.semantics?.fluid?.groups ?? []) {
+  for (const group of fluidSemanticGroups(config.build?.semantics)) {
     if (isRecord(fluid)) walk(fluid[group], ['fluid', group])
   }
   return problems

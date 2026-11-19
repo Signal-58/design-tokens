@@ -12,6 +12,7 @@
  *   s58-tokens figma script variables --dry-run [--collections=Primitives]   # use_figma
  *   s58-tokens figma script colour-scopes --dry-run
  *   s58-tokens figma script text-styles --dry-run [--roles=heading,default]
+ *   s58-tokens figma script export [--collections=Colours]   # the semantics Figma owns, read only
  *
  * Figma's REST API can't write variables or styles on a Pro plan, so the code runs inside Figma: as
  * the project's development plugin, or through the Figma MCP's use_figma tool.
@@ -32,6 +33,7 @@ import {
 import { checkTokens } from './check'
 import { initProject } from './init'
 import { buildColourScopesScript } from './figma/colour-scopes'
+import { buildExportScript, buildExportSpec } from './figma/semantics'
 import { pluginManifest } from './figma/manifest'
 import { buildFigmaPlugin } from './figma/plugin'
 import { buildTextStylesScript } from './figma/text-styles'
@@ -41,6 +43,8 @@ import { builtFiles, dtcgFiles } from './outputs'
 
 /** The most code the Figma MCP's use_figma tool accepts in one call. */
 const USE_FIGMA_LIMIT = 50_000
+/** The most a use_figma call returns. */
+const USE_FIGMA_RETURN_LIMIT = 48_000
 
 const USAGE = `Usage: s58-tokens [--config=<file>] <command>
 
@@ -53,8 +57,10 @@ const USAGE = `Usage: s58-tokens [--config=<file>] <command>
                                          semantic values and APCA misses (for CI)
   palette report                         Contrast on white and black, APCA floors, gamut fit
   figma plugin [--watch]                 Build the project's Figma plugin (code.js)
-  figma script <variables|colour-scopes|text-styles>
-                                         A use_figma script, on stdout
+  figma script <variables|colour-scopes|text-styles|export>
+                                         A use_figma script, on stdout. export reads
+                                         the semantics Figma owns; save what it returns
+                                         as the pulled file (build.semantics.file)
       [--dry-run] [--collections=a,b] [--roles=a,b]
 `
 
@@ -122,6 +128,7 @@ function buildPlugin(config: TokensConfig): void {
       variables: variablesSpecFor(config),
       colourScopes: colourScopesSpecFor(config),
       textStyles: textStylesSpecFor(config),
+      export: buildExportSpec(variablesSpecFor(config)),
     },
     fileGuardFor(config),
   )
@@ -179,8 +186,18 @@ function script(config: TokensConfig, args: string[]): void {
       dryRun,
       fileGuardFor(config),
     )
+  } else if (module === 'export') {
+    code = buildExportScript(
+      buildExportSpec(variablesSpecFor(config), list(option(args, 'collections'))),
+      fileGuardFor(config),
+    )
   } else {
     throw new Error(USAGE)
+  }
+  if (module === 'export') {
+    process.stderr.write(
+      `use_figma returns at most ${USE_FIGMA_RETURN_LIMIT} bytes. If the export is larger, run it once per collection (--collections=Colours), or use the plugin's Export button.\n`,
+    )
   }
   if (code.length > USE_FIGMA_LIMIT) {
     process.stderr.write(

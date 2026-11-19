@@ -1,7 +1,7 @@
 /**
  * code.js for a project's tokens development plugin (`s58-tokens figma plugin`). On open it dry-runs
  * every module and shows one report; Apply runs them for real: variables first, then colour
- * scopes, then text styles.
+ * scopes, then text styles. Export reads the semantics Figma owns into the file the build reads.
  * The plugin only knows the config as it was when this ran, so the UI shows the build time and the
  * package version. Before either, the file guard checks it's the project's Figma file.
  */
@@ -10,6 +10,7 @@ import path from 'path'
 import { fileURLToPath } from 'url'
 
 import type { ColourScopesSpec } from './colour-scopes'
+import type { ExportSpec } from './semantics'
 import { inlineFigmaFunction, type FileGuard } from './inline'
 import type { TextStyleSpec } from './text-styles'
 import type { VariablesSpec } from './variables'
@@ -20,6 +21,8 @@ export interface PluginSpecs {
   variables?: VariablesSpec
   colourScopes?: ColourScopesSpec
   textStyles?: TextStyleSpec
+  /** The Export button: what to leave out (the variables the plugin writes). */
+  export?: ExportSpec
 }
 
 /** This package's version, from its package.json (two folders up from src/figma and dist/figma). */
@@ -43,6 +46,8 @@ export function buildFigmaPlugin(
     inlineFigmaFunction('apply-colour-scopes.figma.js'),
     '',
     inlineFigmaFunction('apply-text-styles.figma.js'),
+    '',
+    inlineFigmaFunction('export-semantics.figma.js'),
     '',
     `const SPECS = ${JSON.stringify(specs)}`,
     `const GUARD = ${JSON.stringify(guard)}`,
@@ -69,9 +74,23 @@ export function buildFigmaPlugin(
     '  }',
     '}',
     '',
+    '// The Export button: the semantics Figma owns, as the file the build reads. Reads only.',
+    'async function exportFile() {',
+    '  try {',
+    '    const file = await checkFile(GUARD)',
+    "    if (!file.ok) return figma.ui.postMessage({ type: 'blocked', message: file.message })",
+    "    if (!SPECS.export) throw new Error('This plugin was built without the export.')",
+    '    const { tokens, report } = await exportSemantics(SPECS.export)',
+    "    figma.ui.postMessage({ type: 'exported', json: JSON.stringify(tokens, null, 2) + '\\n', report })",
+    '  } catch (error) {',
+    "    figma.ui.postMessage({ type: 'error', message: String((error && error.message) || error) })",
+    '  }',
+    '}',
+    '',
     'figma.showUI(UI, { width: 440, height: 560, themeColors: true })',
     'figma.ui.onmessage = (msg) => {',
     "  if (msg.type === 'apply') return run(false)",
+    "  if (msg.type === 'export') return exportFile()",
     "  if (msg.type === 'close') figma.closePlugin()",
     '}',
     'run(true)',
