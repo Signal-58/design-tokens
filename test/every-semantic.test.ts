@@ -228,7 +228,11 @@ const pulled = {
   }),
 }
 
-async function starter(semantics: Record<string, unknown>, withFile = true) {
+async function starter(
+  semantics: Record<string, unknown>,
+  withFile = true,
+  file: unknown = pulled,
+) {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 's58-every-semantic-'))
   roots.push(root)
   fs.mkdirSync(path.join(root, 'node_modules/@signal58'), { recursive: true })
@@ -237,7 +241,7 @@ async function starter(semantics: Record<string, unknown>, withFile = true) {
   fs.mkdirSync(path.join(root, 'design-tokens/figma'), { recursive: true })
   fs.writeFileSync(
     path.join(root, 'design-tokens/figma/semantics.tokens.json'),
-    JSON.stringify(pulled),
+    JSON.stringify(file),
   )
   const loaded = await loadTokensConfig(path.join(root, 'design-tokens/tokens.config.ts'))
   const config: TokensConfig = {
@@ -281,15 +285,42 @@ describe('every semantic in code', () => {
     expect(css).not.toContain('grid-same')
   })
 
-  it('writes one block per mode, with the selectors the config gives', async () => {
+  it('writes the default mode in :root, and a block of only what each other mode changes', async () => {
     const { root, config } = await starter(opted)
     const css = await semanticCss(config, root)
-    expect(css).toContain(':root {\n')
     expect(css).toContain('  --layout-block-default-block: var(--space-l-xl);')
     expect(css).toContain('  --layout-block-block-start: var(--layout-block-default-block);')
     expect(css).toContain(
-      "[data-block-spacing='flush'] {\n  /* Layout blocks: Blocks (Flush) */\n  --layout-block-default-block: var(--space-l-xl);\n  --layout-block-block-start: 0;\n}",
+      "[data-block-spacing='flush'] {\n  /* Layout blocks: Blocks (Flush) */\n  --layout-block-block-start: 0;\n}",
     )
+  })
+
+  it('redeclares a token that refers to one a mode changes', async () => {
+    const changing = structuredClone(pulled) as typeof pulled & {
+      'Layout blocks': {
+        Blocks: Record<string, { $extensions: Record<string, Record<string, unknown>> }>
+      }
+    }
+    const blocks = changing['Layout blocks'].Blocks
+    blocks['default-block'].$extensions['com.signal58.modes'].Flush = 0
+    blocks['block-start'].$extensions['com.signal58.modes'].Flush =
+      '{Layout blocks.Blocks.default-block}'
+    const { root, config } = await starter(opted, true, changing)
+    const css = await semanticCss(config, root)
+    expect(css).toContain(
+      "[data-block-spacing='flush'] {\n  /* Layout blocks: Blocks (Flush) */\n  --layout-block-default-block: 0;\n  --layout-block-block-start: var(--layout-block-default-block);\n}",
+    )
+  })
+
+  it('needs no selector for a mode that changes nothing in code', async () => {
+    const { root, config } = await starter({
+      ...opted,
+      exclude: [...opted.exclude, 'Layout blocks/Blocks/block-start'],
+      modes: {},
+    })
+    const css = await semanticCss(config, root)
+    expect(css).toContain('--layout-block-default-block: var(--space-l-xl);')
+    expect(css).not.toContain('data-block-spacing')
   })
 
   it('stops on a reference it can’t follow, unless the token is excluded', async () => {
@@ -302,7 +333,7 @@ describe('every semantic in code', () => {
   it('stops on a mode with no selector', async () => {
     const { root, config } = await starter({ ...opted, modes: {} })
     await expect(builtFiles(config, root)).rejects.toThrow(
-      'Layout blocks has a mode, Flush, with no selector',
+      "Layout blocks's Flush mode changes layout-block-block-start, but has no selector",
     )
   })
 

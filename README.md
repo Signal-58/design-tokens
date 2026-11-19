@@ -109,7 +109,7 @@ semantics: {
 ```
 
 - **Naming.** The plugin's **Code syntax** module (and `s58-tokens figma script code-syntax`) writes the names into Figma, after a dry run, so designers see them in Dev Mode too. It never changes code syntax a designer set, reports a name another variable already has, and lists what no rule covers. Then pull again.
-- **The CSS.** Add a file in the `s58/scss/semantics` format. A collection with the fluid Min and Max modes goes in `:root`: a token whose modes point at the same named token is its `var()`, and anything else becomes a `clamp()` across the Utopia viewport. A collection with one mode goes in `:root`, and any other gets a block per mode. Sizes are rem, except tokens scoped only to line height, opacity or font weight, which stay unitless.
+- **The CSS.** Add a file in the `s58/scss/semantics` format. A collection with the fluid Min and Max modes goes in `:root`: a token whose modes point at the same named token is its `var()`, and anything else becomes a `clamp()` across the Utopia viewport. A collection with one mode goes in `:root`. Any other has its default mode in `:root` and, for each other mode, a block of only what that mode changes, under the selector from `modes`: a mode that changes nothing in code needs no selector and stays design only. Sizes are rem, except tokens scoped only to line height, opacity or font weight, which stay unitless.
 - **The check** fails on an exclusion that matches nothing, a semantic that's neither named nor excluded, a mode with no selector, and no file in the semantics format. Before a project opts in, it only notes how many semantics don't reach code.
 
 ## The check

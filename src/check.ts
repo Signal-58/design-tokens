@@ -9,8 +9,9 @@
  * - a plugin manifest whose name or id doesn't match the config, or that doesn't give the plugin
  *   the file's key for the file guard (`enablePrivatePluginApi`);
  * - once a project sets `build.semantics.exclude` or `codeSyntax` (every semantic in code): an
- *   exclusion that matches nothing, a semantic that's neither named nor excluded, a collection
- *   mode with no selector, and no file in the `s58/scss/semantics` format.
+ *   exclusion that matches nothing, a semantic that's neither named nor excluded, and no file in
+ *   the `s58/scss/semantics` format. (A mode that changes something and has no selector stops the
+ *   build, which the check runs.)
  */
 import fs from 'node:fs'
 import path from 'node:path'
@@ -168,25 +169,6 @@ function semanticsProblems(
     problems.push(
       `${unnamed.length} semantics have no code syntax and aren't excluded: ${list(unnamed.map((t) => `${t.collection}/${t.name}`))}. Name them with the plugin (build.semantics.codeSyntax), in Figma, or exclude them; then pull again.`,
     )
-  }
-  const special = new Set([
-    semantics.colours?.collection,
-    ...(semantics.fluid ? [semantics.fluid.collection] : []),
-  ])
-  const fluidModes = Object.values(config.figmaVariables.fluid.modes)
-  const checked = new Set<string>()
-  for (const t of tokens) {
-    if (checked.has(t.collection) || special.has(t.collection) || t.modes.length < 2) continue
-    if (fluidModes.every((m) => t.modes.includes(m)) && t.modes.length === 2) continue
-    if (isExcluded(exclude, t.collection, t.name) || !t.named) continue
-    checked.add(t.collection)
-    const selectors = semantics.modes?.[t.collection] ?? {}
-    const missing = t.modes.slice(1).filter((m) => !selectors[m])
-    if (missing.length) {
-      problems.push(
-        `${t.collection} has modes with no selector in build.semantics.modes: ${missing.join(', ')}.`,
-      )
-    }
   }
   if (!config.build?.files.some((f) => f.format === 's58/scss/semantics')) {
     problems.push(

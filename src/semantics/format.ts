@@ -6,8 +6,9 @@
  *   to the same named token, the value is its `var()`; otherwise both resolve to px, and the value
  *   is a `clamp()` across the Utopia viewport (or one size, when they're equal).
  * - A collection with one mode goes in `:root`.
- * - Any other collection gets one block per mode, with the selector from `build.semantics.modes`;
- *   the default mode's is `:root` unless the config says otherwise.
+ * - Any other collection: the default mode in `:root`, and a block for each other mode holding
+ *   only what that mode changes (and whatever refers to it), with the selector from
+ *   `build.semantics.modes`. A mode that changes nothing needs no selector.
  *
  * Sizes are written in rem, except tokens scoped only to line height, opacity or font weight,
  * which stay unitless numbers.
@@ -175,6 +176,17 @@ export function semanticsScss({
   }
   blocks.set(':root', [])
 
+  // A collection with other modes: each named token's CSS in every mode, and the same
+  // collection's tokens it refers to, so a mode block holds only what that mode changes.
+  interface Moded {
+    token: TransformedToken
+    name: string
+    heading: string
+    css: Record<string, string>
+    refs: Set<string>
+  }
+  const moded = new Map<string, { info: CollectionInfo; tokens: Moded[] }>()
+
   for (const token of dictionary.allTokens) {
     if (token.path[0] !== 'semantic') continue
     const name = nameOf(token)
@@ -194,19 +206,46 @@ export function semanticsScss({
       add(':root', heading, `  --${name}: ${css(value, token)};`)
       continue
     }
+    const entry: Moded = { token, name, heading, css: {}, refs: new Set() }
     for (const mode of info.modes) {
-      const selector =
-        selectors[collection]?.[mode] ?? (mode === info.defaultMode ? ':root' : undefined)
+      const value = resolve(token, mode, true)
+      entry.css[mode] = css(value, token)
+      if (value.kind === 'var') entry.refs.add(value.name)
+    }
+    const group = moded.get(collection) ?? { info, tokens: [] }
+    group.tokens.push(entry)
+    moded.set(collection, group)
+    add(':root', heading, `  --${name}: ${entry.css[info.defaultMode]};`)
+  }
+
+  for (const [collection, { info, tokens }] of moded) {
+    for (const mode of info.modes) {
+      if (mode === info.defaultMode) continue
+      // What the mode changes, plus whatever refers to that within the collection: a custom
+      // property is computed where it's declared, so a var() of a changed one must be redeclared.
+      const changed = new Set(
+        tokens.filter((t) => t.css[mode] !== t.css[info.defaultMode]).map((t) => t.name),
+      )
+      for (let grew = true; grew;) {
+        grew = false
+        for (const t of tokens) {
+          if (!changed.has(t.name) && [...t.refs].some((r) => changed.has(r))) {
+            changed.add(t.name)
+            grew = true
+          }
+        }
+      }
+      if (!changed.size) continue
+      const selector = selectors[collection]?.[mode]
       if (!selector) {
         throw new Error(
-          `${collection} has a mode, ${mode}, with no selector. Add it to build.semantics.modes, or exclude the collection.`,
+          `${collection}'s ${mode} mode changes ${[...changed].join(', ')}, but has no selector. Add it to build.semantics.modes, or exclude what it changes.`,
         )
       }
-      add(
-        selector,
-        `${heading}${mode === info.defaultMode ? '' : ` (${mode})`}`,
-        `  --${name}: ${css(resolve(token, mode, true), token)};`,
-      )
+      for (const t of tokens) {
+        if (changed.has(t.name))
+          add(selector, `${t.heading} (${mode})`, `  --${t.name}: ${t.css[mode]};`)
+      }
     }
   }
 

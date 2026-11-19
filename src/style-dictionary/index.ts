@@ -54,9 +54,9 @@ export interface PulledSemantics {
    */
   codeSyntax?: Readonly<Record<string, string>>
   /**
-   * The selector for each mode of a collection with modes other than Light/Dark and Min/Max:
-   * `{ 'Layout blocks': { Default: ':root', Flush: "[data-block-spacing='flush']" } }`. The
-   * default mode's is `:root` unless given.
+   * The selector for each mode of a collection with modes other than Light/Dark and Min/Max, for
+   * the modes that change a named token: `{ 'Layout blocks': { Flush: "[data-block-spacing='flush']" } }`.
+   * The default mode is `:root`. A mode that changes nothing in code needs none: it stays design only.
    */
   modes?: Readonly<Record<string, Readonly<Record<string, string>>>>
 }
