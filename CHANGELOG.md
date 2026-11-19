@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.6.0
 
 - **Every semantic in code.** `build.semantics` takes `exclude` (collections and groups that stay in Figma), `codeSyntax` (names by group for what Figma hasn't named) and `modes` (a selector per mode of any other multi-mode collection). Once a project sets `exclude` or `codeSyntax`, the new `s58/scss/semantics` format writes every semantic not excluded: fluid Min/Max collections as `var()` or `clamp()`, single-mode ones in `:root`, others as a block per mode. References through excluded tokens resolve to the next named one.
 - **Code syntax module.** The plugin names Figma's semantics by those rules, after a dry run, never changing a name a designer set; `s58-tokens figma script code-syntax` does the same through `use_figma`.
