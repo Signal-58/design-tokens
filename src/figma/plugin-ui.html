@@ -174,12 +174,41 @@
     }
   }
 
+  // Figma against the committed file: what Export would change. Apply doesn't pull, so it adds
+  // nothing to the count of changes to apply.
+  function semanticsSection(r) {
+    const entry = (path) =>
+      path === '$extensions'
+        ? 'The file’s colour profile'
+        : path.endsWith('/$extensions')
+          ? `${esc(path.slice(0, -'/$extensions'.length))} <span class="muted">(its modes)</span>`
+          : esc(path)
+    const s = r.summary
+    const total = s.added.length + s.changed.length + s.removed.length
+    const body =
+      total || s.reordered.length
+        ? `<p>Figma has ${plural(total, 'change')} the committed file doesn’t. Export to pull them, then build and commit.</p>` +
+          list('Added in Figma', s.added.map(entry)) +
+          list('Changed in Figma', s.changed.map(entry)) +
+          list('Removed in Figma', s.removed.map(entry)) +
+          list('Reordered', s.reordered.map(esc))
+        : `<p class="muted">The committed file has everything Figma does, as of this build.</p>`
+    return {
+      pending: 0,
+      html:
+        `<h2 class="module">Semantics (Figma against the repo)</h2>` +
+        body +
+        list('Warnings', r.report.warnings.map(esc), 'warn'),
+    }
+  }
+
   function render(dryRun, reports, builtAt, version, checkedBy) {
     const sections = [
       reports.variables && variablesSection(reports.variables),
       reports.colourScopes && colourScopesSection(reports.colourScopes),
       reports.codeSyntax && codeSyntaxSection(reports.codeSyntax),
       reports.textStyles && textStylesSection(reports.textStyles),
+      reports.semantics && semanticsSection(reports.semantics),
     ].filter(Boolean)
     const pending = sections.reduce((n, s) => n + s.pending, 0)
     const heading = dryRun

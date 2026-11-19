@@ -14,6 +14,9 @@
  *   s58-tokens figma script text-styles --dry-run [--roles=heading,default]
  *   s58-tokens figma script code-syntax --dry-run              # names semantics by build.semantics.codeSyntax
  *   s58-tokens figma script export [--collections=Colours]   # the semantics Figma owns, read only
+ *   s58-tokens figma script check [--collections=Colours]    # what Export would change, read only
+ *   s58-tokens figma diff <result.json>                      # the check's result, as a report
+ *   s58-tokens figma pull <result.json>                      # applies it to the pulled file
  *
  * Figma's REST API can't write variables or styles on a Pro plan, so the code runs inside Figma: as
  * the project's development plugin, or through the Figma MCP's use_figma tool.
@@ -36,6 +39,14 @@ import { checkTokens } from './check'
 import { initProject } from './init'
 import { buildColourScopesScript } from './figma/colour-scopes'
 import { buildExportScript, buildExportSpec } from './figma/semantics'
+import {
+  applySemanticsDiff,
+  buildDiffScript,
+  buildDiffSpec,
+  describeDiff,
+  type SemanticsDiff,
+} from './figma/diff'
+import { isPulled } from './semantics/rules'
 import { buildCodeSyntaxScript } from './figma/code-syntax'
 import { pluginManifest } from './figma/manifest'
 import { buildFigmaPlugin } from './figma/plugin'
@@ -60,11 +71,15 @@ const USAGE = `Usage: s58-tokens [--config=<file>] <command>
                                          semantic values and APCA misses (for CI)
   palette report                         Contrast on white and black, APCA floors, gamut fit
   figma plugin [--watch]                 Build the project's Figma plugin (code.js)
-  figma script <variables|colour-scopes|code-syntax|text-styles|export>
+  figma script <variables|colour-scopes|code-syntax|text-styles|export|check>
                                          A use_figma script, on stdout. export reads
                                          the semantics Figma owns; save what it returns
-                                         as the pulled file (build.semantics.file)
+                                         as the pulled file (build.semantics.file).
+                                         check compares them with that file and returns
+                                         only the differences; save what it returns as JSON
       [--dry-run] [--collections=a,b] [--roles=a,b]
+  figma diff <result.json>               What check found: added, changed, removed
+  figma pull <result.json>               Apply check's result to the pulled file
 `
 
 const option = (args: string[], name: string) =>
@@ -119,8 +134,17 @@ function ensureManifest(config: TokensConfig): void {
   write(file, pluginManifest(config.figma.plugin))
 }
 
+/** The pulled file's path and text, or undefined when the project doesn't pull semantics yet. */
+function pulledFile(config: TokensConfig): { file: string; text?: string } | undefined {
+  const semantics = config.build?.semantics
+  if (!isPulled(semantics)) return undefined
+  const file = semantics.file
+  return { file, text: fs.existsSync(file) ? fs.readFileSync(file, 'utf8') : undefined }
+}
+
 function buildPlugin(config: TokensConfig): void {
   ensureManifest(config)
+  const pulled = pulledFile(config)
   if (!config.figma.fileKey) {
     process.stderr.write(
       'figma.fileKey is empty in the token config, so the plugin will refuse to run until it is set.\n',
@@ -133,6 +157,10 @@ function buildPlugin(config: TokensConfig): void {
       codeSyntax: codeSyntaxSpecFor(config),
       textStyles: textStylesSpecFor(config),
       export: buildExportSpec(variablesSpecFor(config)),
+      // The dry run's comparison with the committed file, when there is one.
+      ...(pulled?.text
+        ? { diff: buildDiffSpec(variablesSpecFor(config), pulled.text, { paths: true }) }
+        : {}),
     },
     fileGuardFor(config),
   )
@@ -199,8 +227,24 @@ function script(config: TokensConfig, args: string[]): void {
       buildExportSpec(variablesSpecFor(config), list(option(args, 'collections'))),
       fileGuardFor(config),
     )
+  } else if (module === 'check') {
+    const pulled = pulledFile(config)
+    if (!pulled) throw new Error('The config pulls no semantics (build.semantics.file).')
+    if (!pulled.text)
+      throw new Error(`${pulled.file} is missing. Pull it with the plugin's Export.`)
+    code = buildDiffScript(
+      buildDiffSpec(variablesSpecFor(config), pulled.text, {
+        collections: list(option(args, 'collections')),
+      }),
+      fileGuardFor(config),
+    )
   } else {
     throw new Error(USAGE)
+  }
+  if (module === 'check') {
+    process.stderr.write(
+      `Save what use_figma returns as JSON, then run s58-tokens figma diff <file> to read it, or figma pull <file> to apply it. It returns at most ${USE_FIGMA_RETURN_LIMIT} bytes: if Figma has more changes than that, check once per collection (--collections=Colours) or use the plugin's Export.\n`,
+    )
   }
   if (module === 'export') {
     process.stderr.write(
@@ -214,6 +258,22 @@ function script(config: TokensConfig, args: string[]): void {
     )
   }
   process.stdout.write(code)
+}
+
+/** Reads what `figma script check` returned: a report, or (pull) the pulled file updated. */
+function diffOrPull(config: TokensConfig, sub: 'diff' | 'pull', args: string[]): void {
+  const [resultFile] = args.filter((a) => !a.startsWith('--'))
+  if (!resultFile) throw new Error(USAGE)
+  const pulled = pulledFile(config)
+  if (!pulled?.text)
+    throw new Error('There is no pulled file to compare with (build.semantics.file).')
+  const diff = JSON.parse(fs.readFileSync(resultFile, 'utf8')) as SemanticsDiff
+  const { text, summary } = applySemanticsDiff(pulled.text, diff)
+  process.stdout.write(describeDiff(summary, diff.report?.warnings))
+  if (sub === 'pull' && text !== pulled.text) {
+    write(pulled.file, text)
+    process.stdout.write('Next: s58-tokens build, then review the diff.\n')
+  }
 }
 
 async function main(argv: string[]): Promise<void> {
@@ -259,6 +319,9 @@ async function main(argv: string[]): Promise<void> {
   }
   if (command === 'figma' && sub === 'script')
     return script(await loadTokensConfig(configFile), rest)
+  if (command === 'figma' && (sub === 'diff' || sub === 'pull')) {
+    return diffOrPull(await loadTokensConfig(configFile), sub, rest)
+  }
 
   process.stderr.write(USAGE)
   process.exitCode = 1

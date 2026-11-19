@@ -78,6 +78,17 @@ export {
   formatExport,
   type ExportSpec,
 } from './figma/semantics'
+export {
+  applySemanticsDiff,
+  buildDiffScript,
+  buildDiffSpec,
+  describeDiff,
+  fingerprint,
+  type DiffSpec,
+  type DiffSummary,
+  type SemanticsDiff,
+  type SemanticsFingerprint,
+} from './figma/diff'
 export { builtFiles, dtcgFiles, formatOutput, type OutputFile } from './outputs'
 export { checkTokens, type CheckResult } from './check'
 export { generatedApcaFailures } from './palette/report'
