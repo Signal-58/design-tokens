@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+- **Every semantic in code.** `build.semantics` takes `exclude` (collections and groups that stay in Figma), `codeSyntax` (names by group for what Figma hasn't named) and `modes` (a selector per mode of any other multi-mode collection). Once a project sets `exclude` or `codeSyntax`, the new `s58/scss/semantics` format writes every semantic not excluded: fluid Min/Max collections as `var()` or `clamp()`, single-mode ones in `:root`, others as a block per mode. References through excluded tokens resolve to the next named one.
+- **Code syntax module.** The plugin names Figma's semantics by those rules, after a dry run, never changing a name a designer set; `s58-tokens figma script code-syntax` does the same through `use_figma`.
+- **The check** fails, once a project opts in, on exclusions that match nothing, semantics neither named nor excluded, modes with no selector and no file in the semantics format. Before that it notes how many semantics don't reach code. Nothing changes for a project that doesn't opt in.
+
 ## 0.5.0
 
 - **Export.** The plugin's new **Export** button pulls the semantics Figma owns into one file, `semantics.tokens.json`, with every collection and mode, aliases as references by name, code syntax, scopes and descriptions, and raw colours in the file's own colour profile. It leaves out what the plugin writes from code. `s58-tokens figma script export [--collections=]` gives the same code for `use_figma`.

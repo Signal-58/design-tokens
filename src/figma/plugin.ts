@@ -1,7 +1,7 @@
 /**
  * code.js for a project's tokens development plugin (`s58-tokens figma plugin`). On open it dry-runs
  * every module and shows one report; Apply runs them for real: variables first, then colour
- * scopes, then text styles. Export reads the semantics Figma owns into the file the build reads.
+ * scopes, then code syntax, then text styles. Export reads the semantics Figma owns into the file the build reads.
  * The plugin only knows the config as it was when this ran, so the UI shows the build time and the
  * package version. Before either, the file guard checks it's the project's Figma file.
  */
@@ -9,6 +9,7 @@ import fs from 'fs'
 import path from 'path'
 import { fileURLToPath } from 'url'
 
+import type { CodeSyntaxSpec } from './code-syntax'
 import type { ColourScopesSpec } from './colour-scopes'
 import type { ExportSpec } from './semantics'
 import { inlineFigmaFunction, type FileGuard } from './inline'
@@ -20,6 +21,8 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url))
 export interface PluginSpecs {
   variables?: VariablesSpec
   colourScopes?: ColourScopesSpec
+  /** Names Figma's semantics that have no code syntax, by the project's rules. */
+  codeSyntax?: CodeSyntaxSpec
   textStyles?: TextStyleSpec
   /** The Export button: what to leave out (the variables the plugin writes). */
   export?: ExportSpec
@@ -45,6 +48,8 @@ export function buildFigmaPlugin(
     '',
     inlineFigmaFunction('apply-colour-scopes.figma.js'),
     '',
+    inlineFigmaFunction('apply-code-syntax.figma.js'),
+    '',
     inlineFigmaFunction('apply-text-styles.figma.js'),
     '',
     inlineFigmaFunction('export-semantics.figma.js'),
@@ -63,6 +68,7 @@ export function buildFigmaPlugin(
     '    const reports = {}',
     '    if (SPECS.variables) reports.variables = await applyVariables(SPECS.variables, dryRun)',
     '    if (SPECS.colourScopes) reports.colourScopes = await applyColourScopes(SPECS.colourScopes, dryRun)',
+    '    if (SPECS.codeSyntax) reports.codeSyntax = await applyCodeSyntax(SPECS.codeSyntax, dryRun)',
     '    // What the variables module creates, so the text styles dry run works on a blank file.',
     '    const planned = SPECS.variables',
     "      ? SPECS.variables.collections.flatMap((c) => c.variables.map((v) => c.name + '\\u0000' + v.name))",

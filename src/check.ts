@@ -7,7 +7,10 @@
  *   only at primitives or at other semantics;
  * - APCA floors a generated scale misses, unless the config accepts that miss;
  * - a plugin manifest whose name or id doesn't match the config, or that doesn't give the plugin
- *   the file's key for the file guard (`enablePrivatePluginApi`).
+ *   the file's key for the file guard (`enablePrivatePluginApi`);
+ * - once a project sets `build.semantics.exclude` or `codeSyntax` (every semantic in code): an
+ *   exclusion that matches nothing, a semantic that's neither named nor excluded, a collection
+ *   mode with no selector, and no file in the `s58/scss/semantics` format.
  */
 import fs from 'node:fs'
 import path from 'node:path'
@@ -16,6 +19,7 @@ import type { TokensConfig } from './config'
 import { builtFiles, dtcgFiles, type OutputFile } from './outputs'
 import { generatedApcaFailures } from './palette/report'
 import { fluidSemanticGroups, tokenTree } from './style-dictionary'
+import { covers, isExcluded, isPulled } from './semantics/rules'
 
 const isRecord = (v: unknown): v is Record<string, unknown> =>
   typeof v === 'object' && v !== null && !Array.isArray(v)
@@ -93,6 +97,105 @@ function manifestProblems(config: TokensConfig, root: string): string[] {
   return problems
 }
 
+/** Every token in the pulled file, as collection, name and whether it has code syntax. */
+function pulledTokens(json: Record<string, unknown>) {
+  const out: { collection: string; name: string; named: boolean; modes: string[] }[] = []
+  for (const [collection, node] of Object.entries(json)) {
+    if (collection.startsWith('$') || !isRecord(node)) continue
+    const info = isRecord(node.$extensions)
+      ? node.$extensions['com.signal58.collection']
+      : undefined
+    const modes = isRecord(info) && Array.isArray(info.modes) ? (info.modes as string[]) : []
+    const walk = (n: Record<string, unknown>, at: string[]) => {
+      for (const [key, value] of Object.entries(n)) {
+        if (key.startsWith('$') || !isRecord(value)) continue
+        if ('$value' in value) {
+          const ext = isRecord(value.$extensions) ? value.$extensions : {}
+          out.push({
+            collection,
+            name: [...at, key].join('/'),
+            named: 'com.figma.codeSyntax' in ext,
+            modes,
+          })
+        } else walk(value, [...at, key])
+      }
+    }
+    walk(node, [])
+  }
+  return out
+}
+
+/** Every semantic in code, once the project opts in. Before that, a note of what doesn't reach code. */
+function semanticsProblems(
+  config: TokensConfig,
+  root: string,
+): { problems: string[]; notes: string[] } {
+  const semantics = config.build?.semantics
+  if (!isPulled(semantics)) return { problems: [], notes: [] }
+  const file = path.join(root, semantics.file)
+  if (!fs.existsSync(file))
+    return {
+      problems: [`${semantics.file} is missing. Pull it with the plugin's Export.`],
+      notes: [],
+    }
+  const tokens = pulledTokens(JSON.parse(fs.readFileSync(file, 'utf8')) as Record<string, unknown>)
+  const exclude = semantics.exclude ?? []
+  const unnamed = tokens.filter((t) => !t.named && !isExcluded(exclude, t.collection, t.name))
+  const optedIn = semantics.exclude !== undefined || semantics.codeSyntax !== undefined
+  const list = (items: string[]) =>
+    items.length > 5
+      ? `${items.slice(0, 5).join(', ')} and ${items.length - 5} more`
+      : items.join(', ')
+  if (!optedIn) {
+    return {
+      problems: [],
+      notes: unnamed.length
+        ? [
+            `${unnamed.length} of Figma's semantics have no code syntax, so they don't reach code. Set build.semantics.exclude and codeSyntax to choose.`,
+          ]
+        : [],
+    }
+  }
+  const problems: string[] = []
+  for (const group of exclude) {
+    if (!tokens.some((t) => covers(group, t.collection, t.name))) {
+      problems.push(
+        `build.semantics.exclude has "${group}", which matches nothing in ${semantics.file}. Was it renamed in Figma?`,
+      )
+    }
+  }
+  if (unnamed.length) {
+    problems.push(
+      `${unnamed.length} semantics have no code syntax and aren't excluded: ${list(unnamed.map((t) => `${t.collection}/${t.name}`))}. Name them with the plugin (build.semantics.codeSyntax), in Figma, or exclude them; then pull again.`,
+    )
+  }
+  const special = new Set([
+    semantics.colours?.collection,
+    ...(semantics.fluid ? [semantics.fluid.collection] : []),
+  ])
+  const fluidModes = Object.values(config.figmaVariables.fluid.modes)
+  const checked = new Set<string>()
+  for (const t of tokens) {
+    if (checked.has(t.collection) || special.has(t.collection) || t.modes.length < 2) continue
+    if (fluidModes.every((m) => t.modes.includes(m)) && t.modes.length === 2) continue
+    if (isExcluded(exclude, t.collection, t.name) || !t.named) continue
+    checked.add(t.collection)
+    const selectors = semantics.modes?.[t.collection] ?? {}
+    const missing = t.modes.slice(1).filter((m) => !selectors[m])
+    if (missing.length) {
+      problems.push(
+        `${t.collection} has modes with no selector in build.semantics.modes: ${missing.join(', ')}.`,
+      )
+    }
+  }
+  if (!config.build?.files.some((f) => f.format === 's58/scss/semantics')) {
+    problems.push(
+      "No file in build.files uses the 's58/scss/semantics' format, so the named semantics don't reach CSS.",
+    )
+  }
+  return { problems, notes: [] }
+}
+
 export interface CheckResult {
   problems: string[]
   /** Things that pass but are worth seeing, such as accepted APCA misses. */
@@ -104,13 +207,15 @@ export async function checkTokens(
   root = process.cwd(),
 ): Promise<CheckResult> {
   const apca = apcaMisses(config)
+  const semantics = semanticsProblems(config, root)
   return {
     problems: [
       ...outOfDate([...dtcgFiles(config), ...(await builtFiles(config, root))], root),
       ...rawSemantics(config, root),
       ...apca.problems,
       ...manifestProblems(config, root),
+      ...semantics.problems,
     ],
-    notes: apca.accepted.map((f) => `Accepted APCA miss: ${f}`),
+    notes: [...apca.accepted.map((f) => `Accepted APCA miss: ${f}`), ...semantics.notes],
   }
 }
