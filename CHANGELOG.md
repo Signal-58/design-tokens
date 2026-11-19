@@ -1,5 +1,10 @@
 # Changelog
 
+## Unreleased
+
+- **Mode blocks hold only what a mode changes.** In `s58/scss/semantics`, a collection with other modes has its default mode in `:root`, and each other mode's block holds only the tokens that mode changes, plus any that refer to them within the collection (a custom property is computed where it's declared). A mode that changes nothing in code writes nothing and needs no selector, so its variants can stay design only.
+- `check` no longer asks for a selector for every mode; the build stops on a mode that changes something and has none, naming what it changes. The default mode is always `:root`.
+
 ## 0.6.0
 
 - **Every semantic in code.** `build.semantics` takes `exclude` (collections and groups that stay in Figma), `codeSyntax` (names by group for what Figma hasn't named) and `modes` (a selector per mode of any other multi-mode collection). Once a project sets `exclude` or `codeSyntax`, the new `s58/scss/semantics` format writes every semantic not excluded: fluid Min/Max collections as `var()` or `clamp()`, single-mode ones in `:root`, others as a block per mode. References through excluded tokens resolve to the next named one.
