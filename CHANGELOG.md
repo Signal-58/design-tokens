@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.7.0
 
 - **Layout primitives.** A new optional config, `layout.config.ts` (`defineLayout`, `layout` in `defineTokens`), makes code own the primitives Figma's semantics alias that aren't Utopia steps or colours: the viewport's widths, border widths (aliases to space primitives at both viewports), line heights (ratios from the typography config's rules) and fixed sizes such as hero heights. The plugin writes them under the names the file already uses, so aliases to them stay, and the pulled file leaves them out.
 - **Sizes in CSS.** A size group with `css` is generated into `layout.tokens.json` and written by the new `s58/scss/layout` format, in px (`--hero-size-small: 550px`), so code and Figma read the same numbers.
