@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.6.1
 
 - **Mode blocks hold only what a mode changes.** In `s58/scss/semantics`, a collection with other modes has its default mode in `:root`, and each other mode's block holds only the tokens that mode changes, plus any that refer to them within the collection (a custom property is computed where it's declared). A mode that changes nothing in code writes nothing and needs no selector, so its variants can stay design only.
 - `check` no longer asks for a selector for every mode; the build stops on a mode that changes something and has none, naming what it changes. The default mode is always `:root`.
