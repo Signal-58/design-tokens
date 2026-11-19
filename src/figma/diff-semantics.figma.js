@@ -89,7 +89,10 @@ export async function diffSemantics(spec) {
     order.collections = names
   }
 
-  const result = { format: 1, base: spec.committed.base, changed, missing, order, report }
+  // A checksum of what Node applies, so a result copied by hand (an agent saving use_figma's
+  // answer) is refused if anything in it changed on the way.
+  const check = hash(JSON.stringify([changed, missing, order]))
+  const result = { format: 1, base: spec.committed.base, check, changed, missing, order, report }
   // Names for the plugin's report: what was added, changed or removed.
   if (spec.committed.paths) {
     const pathOf = new Map(spec.committed.hashes.map((h, i) => [h, spec.committed.paths[i]]))

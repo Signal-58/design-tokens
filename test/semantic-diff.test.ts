@@ -245,6 +245,20 @@ describe('Figma against the committed file', () => {
     expect(summary.removed).toContain('Fluid tokens/Buttons/solid-large-gap')
   })
 
+  it('refuses a result that changed after Figma made it', async () => {
+    const file = mockFile()
+    const committed = await exportText(file.figma)
+    file.v.surface.description = 'The page'
+    const diff = await check(file.figma, committed)
+    const copied = JSON.parse(JSON.stringify(diff)) as SemanticsDiff
+    ;(copied.changed[0].value as { $description: string }).$description = 'The pages'
+    expect(() => applySemanticsDiff(committed, copied)).toThrow(/checksum/)
+    // Reformatting the JSON is fine: only the content counts.
+    expect(() =>
+      applySemanticsDiff(committed, JSON.parse(JSON.stringify(diff, null, 4))),
+    ).not.toThrow()
+  })
+
   it('refuses a result made from another version of the file', async () => {
     const file = mockFile()
     const committed = await exportText(file.figma)

@@ -44,6 +44,8 @@ interface Entry {
 export interface SemanticsDiff {
   format: 1
   base: string
+  /** The hash of `[changed, missing, order]`, so a copy that changed on the way is refused. */
+  check: string
   /** In Figma and not in the file: added or changed. */
   changed: Entry[]
   /** Hashes of the file's entries that Figma doesn't have as they are: removed or changed. */
@@ -171,6 +173,11 @@ export function applySemanticsDiff(
   diff: SemanticsDiff,
 ): { text: string; summary: DiffSummary } {
   if (diff.format !== 1) throw new Error(`Unknown diff format ${String(diff.format)}`)
+  if (diff.check !== hash(JSON.stringify([diff.changed, diff.missing, diff.order]))) {
+    throw new Error(
+      "The result doesn't match its checksum: it changed after Figma made it (copied wrongly?). Run the check again and save what it returns exactly.",
+    )
+  }
   if (diff.base !== hash(committed)) {
     throw new Error(
       'The diff was made from another version of the committed file. Run the check again.',
